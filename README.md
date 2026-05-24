@@ -39,7 +39,7 @@ Không chỉ là một cuốn từ điển thông thường, đây là nơi bạ
 - 🏠 Đồ dùng sinh hoạt
 - Và bất kỳ nội dung nào bạn muốn ghi nhớ
 
-✅ Chạy trực tiếp trên trình duyệt  
+✅ Chạy trực tiếp trên trình duyệt  (hiện đã có trên 800.000 mục từ)
 
 ✅ Không cần cài đặt  
 
