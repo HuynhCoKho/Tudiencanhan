@@ -117,7 +117,7 @@ If you find it useful, feel free to create your own personalized learning dictio
 
 🌐 Web Version:
 
-[👉 Mở ứng dụng tại đây](https://huynhcokho.github.io/Tudiencanhan/)
+[👉 Mở ứng dụng tại đây](https://script.google.com/macros/s/AKfycbxJPiUPaIUlaYNP6d4r5WOR67h4z7PKnuRFd_htJBfIrs74dhe1akC0zJRcwKiwPSKH/exec)
 
 Ví dụ:
 
