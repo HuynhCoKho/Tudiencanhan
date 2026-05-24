@@ -1,68 +1,111 @@
 <!DOCTYPE html>
 <html lang="vi">
-<head>
-  <meta charset="UTF-8">
-  <title>Từ điển cá nhân</title>
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      overflow: hidden;
-    }
 
-    iframe {
-      width: 100%;
-      height: 100vh;
-      border: none;
-      display: block;
-    }
-  </style>
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+content="width=device-width,initial-scale=1">
+
+<title>
+Từ Điển Cá Nhân
+</title>
+
+<style>
+
+body{
+
+margin:0;
+
+font-family:Arial,sans-serif;
+
+background:#f5f7fb;
+
+}
+
+.top{
+
+max-width:1000px;
+
+margin:auto;
+
+padding:20px;
+
+text-align:center;
+
+}
+
+video{
+
+width:100%;
+
+max-width:900px;
+
+border-radius:16px;
+
+box-shadow:0 6px 25px rgba(0,0,0,.15);
+
+margin-top:15px;
+
+}
+
+iframe{
+
+width:100%;
+
+height:90vh;
+
+border:none;
+
+margin-top:20px;
+
+}
+
+h1{
+
+color:#2563eb;
+
+}
+
+</style>
+
 </head>
 
 <body>
-  <body>
 
-<div style="
-max-width:1000px;
-margin:20px auto;
-padding:20px;
-text-align:center;
-">
+<div class="top">
 
-<h1>📚 Từ Điển Cá Nhân / Personal Dictionary</h1>
+<h1>
+
+📚 Từ Điển Cá Nhân
+
+</h1>
 
 <p>
+
 Xây dựng kho kiến thức ngôn ngữ của riêng bạn
+
 </p>
 
 <video
 controls
-autoplay
 muted
-playsinline
-preload="metadata"
-style="
-width:100%;
-max-width:900px;
-border-radius:16px;
-box-shadow:0 6px 25px rgba(0,0,0,.15);
-margin-top:15px;
-">
+playsinline>
 
-<source src="./Demo.mp4" type="video/mp4">
+<source
+src="Demo.mp4"
+type="video/mp4">
 
 </video>
 
 </div>
 
-<!-- App của bạn phía dưới -->
+<iframe
+src="Index.html">
 
-  <iframe
-    src="https://script.google.com/macros/s/AKfycbxJPiUPaIUlaYNP6d4r5WOR67h4z7PKnuRFd_htJBfIrs74dhe1akC0zJRcwKiwPSKH/exec"
-    loading="eager">
-  </iframe>
+</iframe>
+
 </body>
-</html>
 
- 
+</html>
