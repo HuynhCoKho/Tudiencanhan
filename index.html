@@ -4,23 +4,38 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Từ điển cá nhân</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260606-3">
 </head>
 <body>
   <main class="app">
     <header class="hero">
       <div><div class="eyebrow">Drive Personal Dictionary</div><h1>Từ điển cá nhân</h1></div>
       <div class="top-actions">
-        <button id="dedupeBtn" type="button">Xóa trùng</button>
-        <button id="exportBtn" type="button">Xuất JSON</button>
-        <label class="file-btn">Nhập JSON<input id="importFile" type="file" accept=".json,application/json" multiple></label>
-        <span class="author">Author: Huynh Co Kho</span>
+        <div class="top-buttons">
+          <button id="dedupeBtn" type="button">Xóa trùng</button>
+          <button id="exportBtn" type="button">Xuất JSON</button>
+          <label class="file-btn">Nhập JSON<input id="importFile" type="file" accept=".json,application/json" multiple></label>
+        </div>
+        <div class="support-box">
+          <span class="author">Author: Huỳnh Cỏ Khô</span>
+          <button id="donateBtn" class="donate" type="button" aria-expanded="false" aria-controls="donatePanel">Ủng hộ</button>
+          <div id="donatePanel" class="donate-panel" hidden>
+            <strong>Ủng hộ dự án</strong>
+            <div class="donate-actions">
+              <a href="https://github.com/sponsors/HuynhCoKho" target="_blank" rel="noopener">GitHub Sponsor</a>
+              <button id="momoBtn" type="button">MoMo QR</button>
+            </div>
+            <div id="qrBox" class="qr-box" hidden>
+              <img src="assets/momo-qr.svg" alt="MoMo QR Huỳnh Cỏ Khô">
+            </div>
+          </div>
+        </div>
       </div>
     </header>
     <section class="searchbar">
-      <label>Tìm từ<input id="query" type="search" placeholder="Tìm trong từ/cụm từ gốc hoặc bản dịch..."></label>
-      <label class="lang-filter">Ngôn ngữ<select id="languageFilter"></select></label>
+      <label>Tìm từ<input id="query" type="search" placeholder="Nhập từ/cụm từ rồi Enter hoặc bấm Tìm..."></label>
       <button id="searchBtn" type="button">Tìm</button>
+      <label class="lang-filter">Ngôn ngữ<select id="languageFilter"></select></label>
     </section>
     <section class="workspace">
       <aside class="list-pane">
@@ -46,17 +61,7 @@
     </section>
   </main>
   <div id="symbolsPanel" class="symbols" hidden></div>
-  <div id="donatePanel" class="donate-panel" hidden>
-    <strong>Ủng hộ dự án</strong>
-    <div class="donate-actions">
-      <a href="https://github.com/sponsors/HuynhCoKho" target="_blank" rel="noopener">GitHub Sponsor</a>
-      <button id="momoBtn" type="button">MoMo QR</button>
-    </div>
-    <div id="qrBox" class="qr-box" hidden>Thêm ảnh QR vào thư mục dự án để hiển thị tại đây.</div>
-    <div class="donate-author">Author: Huynh Co Kho</div>
-  </div>
-  <button id="donateBtn" class="donate" type="button" aria-expanded="false" aria-controls="donatePanel">Ủng hộ</button>
   <div id="toast" class="toast" role="status" hidden></div>
-  <script src="app.js"></script>
+  <script src="app.js?v=20260606-3"></script>
 </body>
 </html>
