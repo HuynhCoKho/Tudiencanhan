@@ -1,21 +1,53 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="vi">
 <head>
   <meta charset="utf-8">
-  <title>Từ Điển Cá Nhân</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-
-  <script>
-    window.location.replace("https://script.google.com/macros/s/AKfycbxJPiUPaIUlaYNP6d4r5WOR67h4z7PKnuRFd_htJBfIrs74dhe1akC0zJRcwKiwPSKH/exec");
-  </script>
+  <title>Từ điển cá nhân</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
-
 <body>
-  <p>Đang mở Từ Điển Cá Nhân...</p>
-  <p>
-    <a href="https://script.google.com/macros/s/AKfycbxJPiUPaIUlaYNP6d4r5WOR67h4z7PKnuRFd_htJBfIrs74dhe1akC0zJRcwKiwPSKH/exec">
-      Bấm vào đây nếu trang không tự mở
-    </a>
-  </p>
+  <main class="app">
+    <header class="hero">
+      <div><div class="eyebrow">Drive Personal Dictionary</div><h1>Từ điển cá nhân</h1></div>
+      <div class="top-actions">
+        <button id="dedupeBtn" type="button">Xóa trùng</button>
+        <button id="exportBtn" type="button">Xuất JSON</button>
+        <label class="file-btn">Nhập JSON<input id="importFile" type="file" accept=".json,application/json" multiple></label>
+        <span class="author">Author: Huynh Co Kho</span>
+      </div>
+    </header>
+    <section class="searchbar">
+      <label>Tìm từ<input id="query" type="search" placeholder="Tìm trong từ/cụm từ gốc hoặc bản dịch..."></label>
+      <label class="lang-filter">Ngôn ngữ<select id="languageFilter"></select></label>
+      <button id="searchBtn" type="button">Tìm</button>
+    </section>
+    <section class="workspace">
+      <aside class="list-pane">
+        <div class="list-head"><strong id="count">0 mục từ</strong><div class="pager"><button id="firstBtn" type="button">Đầu</button><button id="prevBtn" type="button">Trước</button><button id="nextBtn" type="button">Sau</button><button id="lastBtn" type="button">Cuối</button></div></div>
+        <div id="list" class="list"></div>
+      </aside>
+      <section class="editor-pane">
+        <div class="editor-head"><h2 id="formTitle">Thêm mục từ</h2><button id="newBtn" type="button">Mới</button></div>
+        <form id="entryForm">
+          <input id="id" type="hidden">
+          <div class="grid two"><label>Từ / cụm từ gốc<input id="headword" required></label><label>Ngôn ngữ gốc<select id="sourceLanguage"></select></label></div>
+          <label>Ngôn ngữ dịch<select id="targetLanguage"></select></label>
+          <label>Bản dịch / nội dung tương ứng<input id="translation"></label>
+          <div class="grid two"><label class="inline-label">Phiên âm<button id="symbolsBtn" type="button" class="mini">IPA/Pinyin</button><input id="pronunciation"></label><label>Lĩnh vực<input id="category"></label></div>
+          <label>Nghĩa / ghi chú<textarea id="meaning"></textarea></label>
+          <label>Ví dụ<textarea id="example"></textarea></label>
+          <label>Ảnh minh họa</label>
+          <div id="dropZone" class="drop-zone"><input id="imageFile" type="file" accept="image/*"><span>Kéo thả ảnh vào đây hoặc chọn file</span></div>
+          <img id="preview" class="preview" alt="">
+          <div class="form-actions"><button id="speakHeadBtn" type="button">Nghe từ</button><button id="speakTransBtn" type="button">Nghe dịch</button><button id="deleteBtn" type="button" class="danger">Xóa</button><button type="submit" class="primary">Lưu</button></div>
+        </form>
+      </section>
+    </section>
+  </main>
+  <div id="symbolsPanel" class="symbols" hidden></div>
+  <button id="donateBtn" class="donate" type="button">Ủng hộ</button>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script src="app.js"></script>
 </body>
 </html>
