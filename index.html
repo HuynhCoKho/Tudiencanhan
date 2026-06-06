@@ -31,16 +31,16 @@
         <div class="editor-head"><h2 id="formTitle">Thêm mục từ</h2><button id="newBtn" type="button">Mới</button></div>
         <form id="entryForm">
           <input id="id" type="hidden">
-          <div class="grid two"><label>Từ / cụm từ gốc<input id="headword" required></label><label>Ngôn ngữ gốc<select id="sourceLanguage"></select></label></div>
+          <div class="grid two"><label><span class="label-row">Từ / cụm từ gốc<button id="speakHeadBtn" type="button" class="mini-inline">Nghe</button></span><input id="headword" required></label><label>Ngôn ngữ gốc<select id="sourceLanguage"></select></label></div>
           <label>Ngôn ngữ dịch<select id="targetLanguage"></select></label>
-          <label>Bản dịch / nội dung tương ứng<input id="translation"></label>
-          <div class="grid two"><label class="inline-label">Phiên âm<button id="symbolsBtn" type="button" class="mini">IPA/Pinyin</button><input id="pronunciation"></label><label>Lĩnh vực<input id="category"></label></div>
+          <label><span class="label-row">Bản dịch / nội dung tương ứng<button id="speakTransBtn" type="button" class="mini-inline">Nghe</button></span><input id="translation"></label>
+          <div class="grid two"><label><span class="label-row">Phiên âm<button id="symbolsBtn" type="button" class="mini-inline">IPA/Pinyin</button></span><input id="pronunciation"></label><label>Lĩnh vực<input id="category"></label></div>
           <label>Nghĩa / ghi chú<textarea id="meaning"></textarea></label>
           <label>Ví dụ<textarea id="example"></textarea></label>
           <label>Ảnh minh họa</label>
           <div id="dropZone" class="drop-zone"><input id="imageFile" type="file" accept="image/*"><span>Kéo thả ảnh vào đây hoặc chọn file</span></div>
           <img id="preview" class="preview" alt="">
-          <div class="form-actions"><button id="speakHeadBtn" type="button">Nghe từ</button><button id="speakTransBtn" type="button">Nghe dịch</button><button id="deleteBtn" type="button" class="danger">Xóa</button><button type="submit" class="primary">Lưu</button></div>
+          <div class="form-actions"><button id="deleteBtn" type="button" class="danger">Xóa</button><button type="submit" class="primary">Lưu</button></div>
         </form>
       </section>
     </section>
