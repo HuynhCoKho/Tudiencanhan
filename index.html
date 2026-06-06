@@ -46,7 +46,16 @@
     </section>
   </main>
   <div id="symbolsPanel" class="symbols" hidden></div>
-  <button id="donateBtn" class="donate" type="button">Ủng hộ</button>
+  <div id="donatePanel" class="donate-panel" hidden>
+    <strong>Ủng hộ dự án</strong>
+    <div class="donate-actions">
+      <a href="https://github.com/sponsors/HuynhCoKho" target="_blank" rel="noopener">GitHub Sponsor</a>
+      <button id="momoBtn" type="button">MoMo QR</button>
+    </div>
+    <div id="qrBox" class="qr-box" hidden>Thêm ảnh QR vào thư mục dự án để hiển thị tại đây.</div>
+    <div class="donate-author">Author: Huynh Co Kho</div>
+  </div>
+  <button id="donateBtn" class="donate" type="button" aria-expanded="false" aria-controls="donatePanel">Ủng hộ</button>
   <div id="toast" class="toast" role="status" hidden></div>
   <script src="app.js"></script>
 </body>
