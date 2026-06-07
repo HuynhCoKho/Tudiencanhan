@@ -3,426 +3,403 @@ const PERSONAL_DATA_URL = './data/personal_dictionary_data.json';
 const CUSTOM_KEY = 'tdcn_custom_entries_v1';
 const DELETED_KEY = 'tdcn_deleted_entries_v1';
 const PAGE_SIZE = 40;
-const LANGS = ['Tất cả', 'Anh', 'Việt', 'Trung', 'Thái', 'Nhật', 'Hàn', 'Pháp', 'Đức', 'Nga', 'Khác'];
-const LANG_MAP = {
-  all: 'Tất cả', 'tat ca': 'Tất cả',
-  anh: 'Anh', english: 'Anh', en: 'Anh',
-  viet: 'Việt', vi: 'Việt', vietnamese: 'Việt',
-  trung: 'Trung', chinese: 'Trung', zh: 'Trung',
-  thai: 'Thái', th: 'Thái',
-  nhat: 'Nhật', japanese: 'Nhật', ja: 'Nhật',
-  han: 'Hàn', korean: 'Hàn', ko: 'Hàn',
-  phap: 'Pháp', french: 'Pháp', fr: 'Pháp',
-  duc: 'Đức', german: 'Đức', de: 'Đức',
-  nga: 'Nga', russian: 'Nga', ru: 'Nga',
-  khac: 'Khác', other: 'Khác'
-};
-const VOICE_LANG = { 'Việt': 'vi-VN', Anh: 'en-US', Trung: 'zh-CN', Thái: 'th-TH', Nhật: 'ja-JP', Hàn: 'ko-KR', Pháp: 'fr-FR', Đức: 'de-DE', Nga: 'ru-RU' };
+const LANGS = ['Tất cả','Anh','Việt','Trung','Thái','Nhật','Hàn','Pháp','Đức','Nga','Khác'];
+const LANGUAGE_LABELS = {all:'Tất cả', 'tat ca':'Tất cả', anh:'Anh', english:'Anh', en:'Anh', viet:'Việt', vi:'Việt', vietnamese:'Việt', trung:'Trung', chinese:'Trung', zh:'Trung', thai:'Thái', th:'Thái', nhat:'Nhật', japanese:'Nhật', ja:'Nhật', han:'Hàn', korean:'Hàn', ko:'Hàn', phap:'Pháp', french:'Pháp', fr:'Pháp', duc:'Đức', german:'Đức', de:'Đức', nga:'Nga', russian:'Nga', ru:'Nga', khac:'Khác', other:'Khác' };
 const $ = id => document.getElementById(id);
 const collator = new Intl.Collator('vi', { numeric: true, sensitivity: 'base' });
-let baseEntries = [];
-let customEntries = [];
-let deletedIds = new Set();
-let visibleEntries = [];
-let page = 0;
-let selectedId = '';
+let baseEntries = [], customEntries = [], deletedIds = new Set(), visibleEntries = [], page = 0, selectedId = '';
 let currentImage = '';
 
-function stripMarks(value) { return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
-function normalizeLanguage(value) {
+function normalizeLanguage(value){
   const raw = String(value || '').trim();
-  const key = stripMarks(raw).toLowerCase();
-  return LANG_MAP[key] || raw || 'Khác';
+  const key = raw.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  return LANGUAGE_LABELS[key] || raw || 'Khác';
 }
-function searchText(value) { return String(value || '').toLocaleLowerCase('vi').trim(); }
-function makeId() { return 'u_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8); }
-function escapeHtml(value) { return String(value || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-function toast(message, ms = 3500) {
-  const el = $('toast');
-  if (!el) return;
-  el.textContent = message || '';
-  el.hidden = !message;
-  clearTimeout(toast.timer);
-  if (message && ms) toast.timer = setTimeout(() => { el.hidden = true; }, ms);
+function searchText(value){ return String(value || '').toLocaleLowerCase('vi').trim(); }
+function makeId(){ return 'u_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8); }
+function toast(message){ $('toast').textContent = message; $('toast').hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => $('toast').hidden = true, 3200); }
+function loadLocal(){
+  try {
+    customEntries = JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]').map(cleanEntry);
+    deletedIds = new Set(JSON.parse(localStorage.getItem(DELETED_KEY) || '[]'));
+  } catch (error) {
+    customEntries = [];
+    deletedIds = new Set();
+    toast('Dữ liệu lưu trong trình duyệt bị lỗi, app đã bỏ qua bản lỗi.');
+  }
 }
-
-function cleanEntry(entry = {}) {
-  const sourceLanguage = normalizeLanguage(entry.sourceLanguage || entry.sourceLang || entry.language || entry.lang || 'Việt');
-  const targetLanguage = normalizeLanguage(entry.targetLanguage || entry.targetLang || (sourceLanguage === 'Việt' ? 'Anh' : 'Việt'));
-  const headword = entry.headword || entry.term || entry.word || entry.sourceText || entry.foreignTerm || entry.vietnamese || entry.source || '';
-  const translation = entry.translation || entry.targetText || entry.meaningShort || entry.definition || entry.meaning || entry.target || '';
-  return {
-    id: String(entry.id || makeId()),
-    headword: String(headword || '').trim(),
-    translation: String(translation || '').trim(),
-    sourceLanguage,
-    targetLanguage,
-    pronunciation: String(entry.pronunciation || entry.ipa || entry.pinyin || '').trim(),
-    category: String(entry.category || entry.topic || entry.domain || '').trim(),
-    meaning: String(entry.meaning || entry.note || entry.notes || '').trim(),
-    example: String(entry.example || entry.examples || '').trim(),
-    image: String(entry.image || entry.imageData || '').trim(),
-    sourceName: String(entry.sourceName || '').trim()
-  };
-}
-function contentKey(entry) {
-  return [searchText(entry.headword), searchText(entry.translation), normalizeLanguage(entry.sourceLanguage), normalizeLanguage(entry.targetLanguage)].join('|');
-}
-function summary(entry) { return entry.translation || entry.meaning || entry.example || entry.category || ''; }
-function sortEntries(items) { return items.sort((a, b) => collator.compare(a.headword || '', b.headword || '')); }
-function rank(entry, query) {
-  const head = searchText(entry.headword);
-  const trans = searchText(entry.translation);
-  if (head === query) return 0;
-  if (trans === query) return 1;
-  if (head.startsWith(query)) return 2;
-  if (trans.startsWith(query)) return 3;
-  if (head.includes(query)) return 4;
-  if (trans.includes(query)) return 5;
-  return 99;
-}
-
-function loadLocal() {
-  try { customEntries = JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]').map(cleanEntry); } catch { customEntries = []; }
-  try { deletedIds = new Set(JSON.parse(localStorage.getItem(DELETED_KEY) || '[]')); } catch { deletedIds = new Set(); }
-}
-function saveLocal() {
+function saveLocal(){
   try {
     localStorage.setItem(CUSTOM_KEY, JSON.stringify(customEntries));
     localStorage.setItem(DELETED_KEY, JSON.stringify([...deletedIds]));
   } catch (error) {
-    throw new Error('Bộ nhớ trình duyệt không đủ để lưu dữ liệu này. Hãy xuất JSON để lưu trữ, rồi xóa bớt ảnh lớn hoặc mục không cần thiết.');
+    throw new Error('Bộ nhớ trình duyệt không đủ để lưu dữ liệu này. Hãy nhập file nhỏ hơn hoặc dùng nút Xuất JSON để lưu ra file riêng.');
   }
 }
-function allEntries() {
+async function loadDictionaryFile(url){
+  const response = await fetch(url, { cache: 'no-store' });
+  if (!response.ok) throw new Error(response.status + ' ' + response.statusText);
+  const data = await response.json();
+  return (Array.isArray(data) ? data : data.entries || []).map(cleanEntry);
+}
+function cleanEntry(entry){
+  return {
+    id: entry.id || makeId(),
+    headword: entry.headword || entry.foreignTerm || entry.vietnamese || '',
+    translation: entry.translation || entry.meaning || '',
+    sourceLanguage: normalizeLanguage(entry.sourceLanguage || entry.language || 'Việt'),
+    targetLanguage: normalizeLanguage(entry.targetLanguage || (entry.language === 'Viet' ? 'Anh' : 'Việt')),
+    pronunciation: entry.pronunciation || '',
+    category: entry.category || '',
+    meaning: entry.meaning || '',
+    example: entry.example || '',
+    image: entry.image || '',
+    sourceName: entry.sourceName || ''
+  };
+}
+function allEntries(){
   const map = new Map();
   baseEntries.forEach(e => { if (!deletedIds.has(e.id)) map.set(e.id, e); });
   customEntries.forEach(e => { if (!deletedIds.has(e.id)) map.set(e.id, e); });
   return [...map.values()];
 }
-
-function fillLanguages() {
-  ['languageFilter', 'sourceLanguage', 'targetLanguage'].forEach(id => {
-    const select = $(id);
-    if (!select) return;
-    const list = id === 'languageFilter' ? LANGS : LANGS.filter(lang => lang !== 'Tất cả');
-    select.innerHTML = list.map(lang => `<option value="${lang}">${lang}</option>`).join('');
+function contentKey(entry){
+  return [
+    searchText(entry.headword),
+    searchText(entry.translation),
+    normalizeLanguage(entry.sourceLanguage),
+    normalizeLanguage(entry.targetLanguage)
+  ].join('|');
+}
+function dedupeEntries(entries){
+  const byId = new Map();
+  const contentToId = new Map();
+  entries.forEach(entry => {
+    const key = contentKey(entry);
+    const id = entry.id || 'content:' + key;
+    const existingId = contentToId.get(key);
+    if (existingId) {
+      byId.set(existingId, entry);
+      return;
+    }
+    contentToId.set(key, id);
+    byId.set(id, entry);
   });
-  if ($('languageFilter')) $('languageFilter').value = 'Tất cả';
-  if ($('sourceLanguage')) $('sourceLanguage').value = 'Việt';
-  if ($('targetLanguage')) $('targetLanguage').value = 'Anh';
+  return [...byId.values()];
 }
-
-function applySearch() {
-  const query = searchText($('query')?.value || '');
-  const language = $('languageFilter')?.value || 'Tất cả';
-  let entries = allEntries();
-  if (language && language !== 'Tất cả') entries = entries.filter(e => e.sourceLanguage === language || e.targetLanguage === language);
-  if (query) {
-    entries = entries
-      .filter(e => searchText(e.headword).includes(query) || searchText(e.translation).includes(query))
-      .sort((a, b) => rank(a, query) - rank(b, query) || collator.compare(a.headword || '', b.headword || ''));
+function entrySummary(entry){ return entry.translation || entry.meaning || entry.example || ''; }
+function sortEntries(items){ return items.sort((a,b) => collator.compare(a.headword || '', b.headword || '')); }
+function rank(entry, q){
+  const h = searchText(entry.headword), t = searchText(entry.translation);
+  if (h === q) return 0;
+  if (t === q) return 1;
+  if (h.startsWith(q)) return 2;
+  if (t.startsWith(q)) return 3;
+  if (h.includes(q)) return 4;
+  if (t.includes(q)) return 5;
+  return 99;
+}
+function applySearch(){
+  const q = searchText($('query').value);
+  const lang = $('languageFilter').value;
+  let items = allEntries();
+  if (lang && lang !== 'Tất cả') items = items.filter(e => e.sourceLanguage === lang || e.targetLanguage === lang);
+  if (q) {
+    items = items
+      .filter(e => searchText(e.headword).includes(q) || searchText(e.translation).includes(q))
+      .sort((a,b) => rank(a,q) - rank(b,q) || collator.compare(a.headword || '', b.headword || ''));
   } else {
-    sortEntries(entries);
+    items = sortEntries(items);
   }
-  visibleEntries = entries;
-  page = 0;
+  visibleEntries = items;
+  page = Math.min(page, Math.max(0, Math.ceil(items.length / PAGE_SIZE) - 1));
   renderList();
-  if (visibleEntries.length) selectEntry(visibleEntries[0].id, false);
-  else newEntry(false);
+  if (visibleEntries.length) selectEntry(visibleEntries[page * PAGE_SIZE].id);
+  else newEntry();
 }
-
-function renderList() {
-  const list = $('list');
-  const count = $('count');
-  if (!list || !count) return;
-  const totalPages = Math.max(1, Math.ceil(visibleEntries.length / PAGE_SIZE));
-  page = Math.max(0, Math.min(page, totalPages - 1));
-  count.textContent = `${visibleEntries.length} mục từ`;
-  const rows = visibleEntries.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
-  list.innerHTML = rows.length ? rows.map(e => `
-    <article class="card${e.id === selectedId ? ' active' : ''}" data-id="${escapeHtml(e.id)}">
-      ${e.image ? `<img class="thumb" src="${escapeHtml(e.image)}" alt="">` : '<div class="thumb empty">Ảnh</div>'}
-      <div><div class="term">${escapeHtml(e.headword)}</div><div class="translation">${escapeHtml(summary(e))}</div></div>
-    </article>`).join('') : '<p class="empty-note">Chưa có mục phù hợp.</p>';
-  const total = Math.max(1, Math.ceil(visibleEntries.length / PAGE_SIZE));
-  if ($('firstBtn')) $('firstBtn').disabled = page <= 0;
-  if ($('prevBtn')) $('prevBtn').disabled = page <= 0;
-  if ($('nextBtn')) $('nextBtn').disabled = page >= total - 1;
-  if ($('lastBtn')) $('lastBtn').disabled = page >= total - 1;
+function renderList(){
+  $('count').textContent = visibleEntries.length + ' mục từ';
+  const start = page * PAGE_SIZE;
+  const rows = visibleEntries.slice(start, start + PAGE_SIZE);
+  const html = rows.map(e => {
+    const active = e.id === selectedId ? ' active' : '';
+    const img = e.image ? `<img class="thumb" src="${escapeAttr(e.image)}" alt="">` : '<div class="thumb empty">Ảnh</div>';
+    return `<article class="card${active}" data-id="${escapeAttr(e.id)}">${img}<div><div class="term">${escapeHtml(e.headword)}</div><div class="translation">${escapeHtml(entrySummary(e))}</div></div></article>`;
+  }).join('');
+  $('list').innerHTML = html || '<p class="empty-note">Chưa có mục phù hợp.</p>';
+  $('firstBtn').disabled = $('prevBtn').disabled = page <= 0;
+  $('nextBtn').disabled = $('lastBtn').disabled = start + PAGE_SIZE >= visibleEntries.length;
 }
-
-function selectEntry(id, rerender = true) {
+function fillLanguages(){
+  ['languageFilter','sourceLanguage','targetLanguage'].forEach(id => {
+    $(id).innerHTML = LANGS.filter(l => id === 'languageFilter' || l !== 'Tất cả').map(l => `<option value="${l}">${l}</option>`).join('');
+  });
+  $('sourceLanguage').value = 'Việt';
+  $('targetLanguage').value = 'Anh';
+}
+function selectEntry(id){
   const entry = allEntries().find(e => e.id === id);
   if (!entry) return;
   selectedId = id;
-  const set = (id, value) => { const el = $(id); if (el) el.value = value || ''; };
-  if ($('formTitle')) $('formTitle').textContent = 'Sửa mục từ';
-  set('id', entry.id);
-  set('headword', entry.headword);
-  set('translation', entry.translation);
-  set('sourceLanguage', normalizeLanguage(entry.sourceLanguage));
-  set('targetLanguage', normalizeLanguage(entry.targetLanguage));
-  set('pronunciation', entry.pronunciation);
-  set('category', entry.category);
-  set('meaning', entry.meaning);
-  set('example', entry.example);
+  $('formTitle').textContent = 'Sửa mục từ';
+  $('id').value = entry.id;
+  $('headword').value = entry.headword || '';
+  $('translation').value = entry.translation || '';
+  $('sourceLanguage').value = normalizeLanguage(entry.sourceLanguage);
+  $('targetLanguage').value = normalizeLanguage(entry.targetLanguage);
+  $('pronunciation').value = entry.pronunciation || '';
+  $('category').value = entry.category || '';
+  $('meaning').value = entry.meaning || '';
+  $('example').value = entry.example || '';
   currentImage = entry.image || '';
-  renderImagePreview();
-  if (rerender) renderList();
+  $('preview').src = currentImage || '';
+  renderList();
 }
-function newEntry(rerender = true) {
+function newEntry(){
   selectedId = '';
   currentImage = '';
-  if ($('formTitle')) $('formTitle').textContent = 'Thêm mục từ';
-  if ($('entryForm')) $('entryForm').reset();
-  if ($('id')) $('id').value = '';
-  if ($('sourceLanguage')) $('sourceLanguage').value = 'Việt';
-  if ($('targetLanguage')) $('targetLanguage').value = 'Anh';
-  renderImagePreview();
-  if (rerender) renderList();
+  $('formTitle').textContent = 'Thêm mục từ';
+  $('entryForm').reset();
+  $('id').value = '';
+  $('sourceLanguage').value = 'Việt';
+  $('targetLanguage').value = 'Anh';
+  $('preview').removeAttribute('src');
 }
-function formEntry() {
+function formEntry(){
   return cleanEntry({
-    id: $('id')?.value || makeId(),
-    headword: $('headword')?.value || '',
-    translation: $('translation')?.value || '',
-    sourceLanguage: $('sourceLanguage')?.value || 'Việt',
-    targetLanguage: $('targetLanguage')?.value || 'Anh',
-    pronunciation: $('pronunciation')?.value || '',
-    category: $('category')?.value || '',
-    meaning: $('meaning')?.value || '',
-    example: $('example')?.value || '',
+    id: $('id').value || makeId(),
+    headword: $('headword').value.trim(),
+    translation: $('translation').value.trim(),
+    sourceLanguage: $('sourceLanguage').value,
+    targetLanguage: $('targetLanguage').value,
+    pronunciation: $('pronunciation').value.trim(),
+    category: $('category').value.trim(),
+    meaning: $('meaning').value.trim(),
+    example: $('example').value.trim(),
     image: currentImage,
-    sourceName: $('id')?.value ? 'Tự sửa trên web' : 'Tự thêm trên web'
+    sourceName: $('id').value ? 'Tự sửa trên web' : 'Tự thêm trên web'
   });
 }
-function saveEntry(event) {
+function saveEntry(event){
   event.preventDefault();
-  try {
-    const entry = formEntry();
-    if (!entry.headword && !entry.translation) return toast('Bạn cần nhập từ gốc hoặc bản dịch.');
-    const index = customEntries.findIndex(e => e.id === entry.id);
-    if (index >= 0) customEntries[index] = entry;
-    else customEntries.unshift(entry);
-    deletedIds.delete(entry.id);
-    saveLocal();
-    selectedId = entry.id;
-    applySearch();
-    selectEntry(entry.id);
-    toast('Đã lưu mục từ.');
-  } catch (error) {
-    toast('Không lưu được mục từ: ' + (error && error.message ? error.message : error), 6000);
-  }
+  const entry = formEntry();
+  if (!entry.headword) return toast('Bạn cần nhập từ / cụm từ gốc.');
+  const idx = customEntries.findIndex(e => e.id === entry.id);
+  if (idx >= 0) customEntries[idx] = entry;
+  else customEntries.unshift(entry);
+  deletedIds.delete(entry.id);
+  saveLocal();
+  selectedId = entry.id;
+  applySearch();
+  toast('Đã lưu mục từ.');
 }
-function deleteEntry() {
-  const id = $('id')?.value;
+function deleteEntry(){
+  const id = $('id').value;
   if (!id) return;
   if (!confirm('Xóa mục từ này?')) return;
-  try {
-    deletedIds.add(id);
-    customEntries = customEntries.filter(e => e.id !== id);
-    saveLocal();
-    selectedId = '';
-    applySearch();
-    toast('Đã xóa mục từ.');
-  } catch (error) {
-    toast('Không xóa được mục từ: ' + (error && error.message ? error.message : error), 6000);
-  }
+  deletedIds.add(id);
+  customEntries = customEntries.filter(e => e.id !== id);
+  saveLocal();
+  selectedId = '';
+  applySearch();
+  toast('Đã xóa mục từ.');
 }
-function removeDuplicates() {
-  try {
-    const seen = new Set();
-    let removed = 0;
-    allEntries().forEach(e => {
-      const key = contentKey(e);
-      if (seen.has(key)) { deletedIds.add(e.id); removed += 1; }
-      else seen.add(key);
-    });
-    customEntries = customEntries.filter(e => !deletedIds.has(e.id));
-    saveLocal();
-    applySearch();
-    toast(`Đã xóa ${removed} mục trùng.`);
-  } catch (error) {
-    toast('Không xóa trùng được: ' + (error && error.message ? error.message : error), 6000);
-  }
+function removeDuplicates(){
+  const seen = new Map(), remove = [];
+  allEntries().forEach(e => {
+    const key = `${searchText(e.headword)}|${searchText(e.translation)}|${e.sourceLanguage}|${e.targetLanguage}`;
+    if (seen.has(key)) remove.push(e.id);
+    else seen.set(key, e.id);
+  });
+  remove.forEach(id => deletedIds.add(id));
+  saveLocal();
+  applySearch();
+  toast(`Đã xóa ${remove.length} mục trùng.`);
 }
-function exportJson() {
-  const blob = new Blob([JSON.stringify({ entries: allEntries(), exportedAt: new Date().toISOString() }, null, 2)], { type: 'application/json;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'tu-dien-ca-nhan.json';
-  link.click();
-  URL.revokeObjectURL(url);
+function exportJson(){
+  const data = { entries: allEntries(), exportedAt: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'tu-dien-ca-nhan.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
-async function importJson(files) {
+async function importJson(files){
   if (!files || !files.length) return toast('Bạn chưa chọn file JSON.');
   const importBtn = $('importBtn');
-  const input = $('importFile');
-  if (importBtn) importBtn.disabled = true;
-  let added = 0, updated = 0, skipped = 0;
+  const importInput = $('importFile');
+  if (importBtn) {
+    importBtn.setAttribute('aria-disabled', 'true');
+    importBtn.style.pointerEvents = 'none';
+  }
+  let added = 0, updated = 0;
   try {
-    toast(`Đang nhập ${files.length} file JSON...`, 0);
+    toast(`Đang nhập ${files.length} file JSON...`);
     for (const file of files) {
-      const data = JSON.parse(await file.text());
-      const entries = Array.isArray(data) ? data : (Array.isArray(data.entries) ? data.entries : []);
-      if (!entries.length) { skipped += 1; continue; }
-      for (const raw of entries) {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      const rows = Array.isArray(data) ? data : (data.entries || []);
+      if (!Array.isArray(rows)) throw new Error(`${file.name}: định dạng JSON không có mảng entries.`);
+      for (const raw of rows) {
         const entry = cleanEntry({ ...raw, sourceName: raw.sourceName || file.name });
-        if (!entry.headword && !entry.translation) { skipped += 1; continue; }
-        const key = contentKey(entry);
-        const idx = customEntries.findIndex(e => e.id === entry.id || contentKey(e) === key);
-        if (idx >= 0) { customEntries[idx] = { ...customEntries[idx], ...entry }; updated += 1; }
-        else { customEntries.unshift(entry); added += 1; }
+        const idx = customEntries.findIndex(e => e.id === entry.id || contentKey(e) === contentKey(entry));
+        if (idx >= 0) {
+          customEntries[idx] = { ...customEntries[idx], ...entry };
+          updated += 1;
+        } else {
+          customEntries.unshift(entry);
+          added += 1;
+        }
         deletedIds.delete(entry.id);
       }
     }
     saveLocal();
+    page = 0;
     applySearch();
-    toast(`Đã nhập ${added} mục mới, cập nhật ${updated} mục${skipped ? `, bỏ qua ${skipped} mục không hợp lệ` : ''}.`, 7000);
+    toast(`Đã nhập ${added} mục mới, cập nhật ${updated} mục.`);
   } catch (error) {
-    toast('Không nhập được file: ' + (error && error.message ? error.message : error), 7000);
+    toast('Không nhập được file: ' + (error && error.message ? error.message : error));
   } finally {
-    if (importBtn) importBtn.disabled = false;
-    if (input) input.value = '';
+    if (importBtn) {
+      importBtn.removeAttribute('aria-disabled');
+      importBtn.style.pointerEvents = '';
+    }
+    if (importInput) importInput.value = '';
   }
 }
-
-function renderImagePreview() {
-  const preview = $('preview');
-  const drop = $('dropZone');
-  if (preview) {
-    if (currentImage) preview.src = currentImage;
-    else preview.removeAttribute('src');
-  }
-  if (drop) drop.classList.toggle('has-image', Boolean(currentImage));
-}
-function compressImage(file) {
+function compressImage(file){
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = reject;
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = reject;
-      img.onload = () => {
-        const maxW = 420, maxH = 280;
-        const ratio = Math.min(maxW / img.width, maxH / img.height, 1);
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.max(1, Math.round(img.width * ratio));
-        canvas.height = Math.max(1, Math.round(img.height * ratio));
-        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', 0.78));
-      };
-      img.src = reader.result;
+    const img = new Image();
+    img.onload = () => {
+      const maxW = 420, maxH = 280, ratio = Math.min(maxW / img.width, maxH / img.height, 1);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(img.width * ratio));
+      canvas.height = Math.max(1, Math.round(img.height * ratio));
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.78));
     };
-    reader.readAsDataURL(file);
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
   });
 }
-async function setImage(file) {
+async function setImage(file){
   if (!file) return;
   currentImage = await compressImage(file);
-  renderImagePreview();
+  $('preview').src = currentImage;
   toast('Ảnh đã được nén trước khi lưu.');
 }
-function speak(text, language) {
+function speak(text, lang){
   const value = String(text || '').trim();
   if (!value) return toast('Chưa có nội dung để phát âm.');
-  if (!('speechSynthesis' in window)) return toast('Trình duyệt này chưa hỗ trợ phát âm.');
-  speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(value);
-  utterance.lang = VOICE_LANG[normalizeLanguage(language)] || 'en-US';
-  speechSynthesis.speak(utterance);
+  if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') return toast('Trình duyệt này chưa hỗ trợ phát âm.');
+  const utter = new SpeechSynthesisUtterance(value);
+  const map = { 'Việt':'vi-VN', 'Anh':'en-US', 'Thái':'th-TH', 'Trung':'zh-CN', 'Nhật':'ja-JP', 'Hàn':'ko-KR', 'Pháp':'fr-FR', 'Đức':'de-DE', 'Nga':'ru-RU' };
+  utter.lang = map[lang] || 'vi-VN';
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utter);
 }
-function insertAtCursor(input, text) {
+function escapeHtml(s){ return String(s || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function escapeAttr(s){ return escapeHtml(s).replace(/'/g, '&#39;'); }
+function insertAtCursor(input, text){
   const start = input.selectionStart ?? input.value.length;
   const end = input.selectionEnd ?? input.value.length;
   input.value = input.value.slice(0, start) + text + input.value.slice(end);
   input.focus();
   input.setSelectionRange(start + text.length, start + text.length);
 }
-function showSymbolsPanel() {
+function showSymbolsPanel(){
   const panel = $('symbolsPanel');
   const input = $('pronunciation');
-  if (!panel || !input) return;
-  const symbols = 'ā á ǎ à ē é ě è ī í ǐ ì ō ó ǒ ò ū ú ǔ ù ǖ ǘ ǚ ǜ ə ɜ ʌ æ ɑ ɒ ɔ ʊ ɪ ʃ ʒ θ ð ŋ ɲ ˈ ˌ ː ˧ ˨ ˩ ˦ ˥'.split(' ');
-  if (!panel.innerHTML) panel.innerHTML = symbols.map(s => `<button type="button">${s}</button>`).join('');
   const rect = input.getBoundingClientRect();
   panel.hidden = false;
   const width = Math.min(520, window.innerWidth - 32);
+  let left = rect.left + window.scrollX;
+  if (left + width > window.scrollX + window.innerWidth - 16) left = window.scrollX + window.innerWidth - width - 16;
   panel.style.width = width + 'px';
-  panel.style.left = Math.max(16, Math.min(rect.left + window.scrollX, window.scrollX + window.innerWidth - width - 16)) + 'px';
+  panel.style.left = Math.max(16, left) + 'px';
   panel.style.top = (rect.bottom + window.scrollY + 8) + 'px';
 }
-function hideSymbolsPanel() { if ($('symbolsPanel')) $('symbolsPanel').hidden = true; }
-function toggleDonate() {
+function hideSymbolsPanel(){ $('symbolsPanel').hidden = true; }
+function toggleDonate(){
   const panel = $('donatePanel');
-  const btn = $('donateBtn');
-  if (!panel || !btn) return;
   panel.hidden = !panel.hidden;
-  btn.setAttribute('aria-expanded', String(!panel.hidden));
+  $('donateBtn').setAttribute('aria-expanded', String(!panel.hidden));
 }
-
-function bind() {
-  const on = (id, event, fn) => { const el = $(id); if (el) el.addEventListener(event, fn); };
-  on('searchBtn', 'click', () => applySearch());
-  on('query', 'keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applySearch(); } });
-  on('languageFilter', 'change', () => applySearch());
-  on('list', 'click', e => { const card = e.target.closest('.card'); if (card) selectEntry(card.dataset.id); });
-  on('firstBtn', 'click', () => { page = 0; renderList(); });
-  on('prevBtn', 'click', () => { page = Math.max(0, page - 1); renderList(); });
-  on('nextBtn', 'click', () => { page += 1; renderList(); });
-  on('lastBtn', 'click', () => { page = Math.max(0, Math.ceil(visibleEntries.length / PAGE_SIZE) - 1); renderList(); });
-  on('newBtn', 'click', () => newEntry());
-  on('entryForm', 'submit', saveEntry);
-  on('deleteBtn', 'click', deleteEntry);
-  on('dedupeBtn', 'click', removeDuplicates);
-  on('exportBtn', 'click', exportJson);
-  on('importBtn', 'click', () => $('importFile')?.click());
-  on('importFile', 'change', e => importJson([...e.target.files]));
-  on('imageFile', 'change', e => setImage(e.target.files[0]).catch(err => toast('Không đọc được ảnh: ' + err.message)));
-  on('speakHeadBtn', 'click', () => speak($('headword')?.value, $('sourceLanguage')?.value));
-  on('speakTransBtn', 'click', () => speak($('translation')?.value, $('targetLanguage')?.value));
-  on('symbolsBtn', 'click', () => ($('symbolsPanel')?.hidden ? showSymbolsPanel() : hideSymbolsPanel()));
-  on('pronunciation', 'focus', showSymbolsPanel);
-  on('pronunciation', 'click', showSymbolsPanel);
-  on('donateBtn', 'click', e => { e.stopPropagation(); toggleDonate(); });
-  on('momoBtn', 'click', e => { e.stopPropagation(); const box = $('qrBox'); if (box) box.hidden = !box.hidden; });
-  const drop = $('dropZone');
-  if (drop) {
-    drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
-    drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
-    drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('drag'); setImage(e.dataTransfer.files[0]); });
-  }
-  document.addEventListener('click', e => {
-    if (e.target.closest('#symbolsPanel button')) insertAtCursor($('pronunciation'), e.target.textContent);
-    if (!e.target.closest('#symbolsPanel') && !e.target.closest('#symbolsBtn') && e.target !== $('pronunciation')) hideSymbolsPanel();
-    if (!e.target.closest('#donatePanel') && e.target !== $('donateBtn')) {
-      const panel = $('donatePanel');
-      const btn = $('donateBtn');
-      if (panel) panel.hidden = true;
-      if (btn) btn.setAttribute('aria-expanded', 'false');
+function bind(){
+  $('searchBtn').onclick = () => { page = 0; applySearch(); };
+  $('query').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); page = 0; applySearch(); } });
+  $('languageFilter').onchange = () => { page = 0; applySearch(); };
+  $('list').onclick = e => { const card = e.target.closest('.card'); if (card) selectEntry(card.dataset.id); };
+  $('firstBtn').onclick = () => { page = 0; renderList(); };
+  $('prevBtn').onclick = () => { page = Math.max(0, page - 1); renderList(); };
+  $('nextBtn').onclick = () => { page += 1; renderList(); };
+  $('lastBtn').onclick = () => { page = Math.max(0, Math.ceil(visibleEntries.length / PAGE_SIZE) - 1); renderList(); };
+  $('newBtn').onclick = newEntry;
+  $('entryForm').onsubmit = saveEntry;
+  $('deleteBtn').onclick = deleteEntry;
+  $('dedupeBtn').onclick = removeDuplicates;
+  $('exportBtn').onclick = exportJson;
+  $('importBtn').addEventListener('click', e => {
+    e.preventDefault();
+    if ($('importBtn').getAttribute('aria-disabled') === 'true') return;
+    $('importFile').click();
+  });
+  $('importBtn').addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      $('importFile').click();
     }
   });
-}
+  $('importFile').onchange = e => importJson([...e.target.files]);
+  $('imageFile').onchange = e => setImage(e.target.files[0]);
+  $('dropZone').ondragover = e => { e.preventDefault(); $('dropZone').classList.add('drag'); };
+  $('dropZone').ondragleave = () => $('dropZone').classList.remove('drag');
+  $('dropZone').ondrop = e => { e.preventDefault(); $('dropZone').classList.remove('drag'); setImage(e.dataTransfer.files[0]); };
+  $('speakHeadBtn').onclick = () => speak($('headword').value, $('sourceLanguage').value);
+  $('speakTransBtn').onclick = () => speak($('translation').value, $('targetLanguage').value);
+  $('donateBtn').onclick = toggleDonate;
+  $('momoBtn').onclick = () => { $('qrBox').hidden = !$('qrBox').hidden; };
 
-async function loadEntriesFromUrl(url) {
-  const response = await fetch(url, { cache: 'no-store' });
-  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-  const data = await response.json();
-  return (Array.isArray(data) ? data : data.entries || []).map(cleanEntry);
+  const symbols = 'ā á ǎ à ē é ě è ī í ǐ ì ō ó ǒ ò ū ú ǔ ù ǖ ǘ ǚ ǜ ə ɜ ʌ æ ɑ ɒ ɔ ʊ ɪ ʃ ʒ θ ð ŋ ɲ ˈ ˌ ː ˧ ˨ ˩ ˦ ˥'.split(' ');
+  $('symbolsPanel').innerHTML = symbols.map(s => `<button type="button">${s}</button>`).join('');
+  $('pronunciation').addEventListener('focus', showSymbolsPanel);
+  $('pronunciation').addEventListener('click', showSymbolsPanel);
+  $('symbolsBtn').onclick = () => { $('symbolsPanel').hidden ? showSymbolsPanel() : hideSymbolsPanel(); };
+  $('symbolsPanel').onclick = e => {
+    if (e.target.tagName === 'BUTTON') insertAtCursor($('pronunciation'), e.target.textContent);
+  };
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#symbolsPanel') && !e.target.closest('#symbolsBtn') && e.target !== $('pronunciation')) hideSymbolsPanel();
+    if (!e.target.closest('#donatePanel') && e.target !== $('donateBtn')) {
+      $('donatePanel').hidden = true;
+      $('donateBtn').setAttribute('aria-expanded', 'false');
+    }
+  });
+  window.addEventListener('resize', () => { if (!$('symbolsPanel').hidden) showSymbolsPanel(); });
 }
-async function init() {
+async function init(){
   fillLanguages();
   bind();
   loadLocal();
   const loaded = [];
-  for (const url of [DATA_URL, PERSONAL_DATA_URL]) {
-    try { loaded.push(...await loadEntriesFromUrl(url)); } catch {}
+  try {
+    loaded.push(...await loadDictionaryFile(DATA_URL));
+  } catch (error) {
+    toast('Không tải được dữ liệu gốc. Vẫn có thể nhập JSON hoặc thêm từ mới.');
   }
-  baseEntries = loaded;
-  toast(loaded.length ? `Đã tải ${loaded.length} mục từ.` : 'Chưa có dữ liệu sẵn. Bạn có thể nhập JSON hoặc thêm từ mới.');
+  try {
+    loaded.push(...await loadDictionaryFile(PERSONAL_DATA_URL));
+  } catch (error) {
+    // File này có thể trống hoặc chưa có trên bản cũ, nên không cần báo lỗi.
+  }
+  baseEntries = dedupeEntries(loaded);
+  if (baseEntries.length) toast(`Đã tải ${baseEntries.length} mục từ.`);
   applySearch();
 }
-
 init();
+
+
+
+
+
