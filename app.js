@@ -552,6 +552,7 @@ function toggleDonate(){
 function bind(){
   $('searchBtn').onclick       = () => { page=0; applySearch(); };
   $('query').addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); page=0; applySearch(); } });
+  $('query').addEventListener('input', () => { page=0; applySearch(); });
   $('languageFilter').onchange = () => { page=0; applySearch(); };
   $('list').onclick = e => { const card=e.target.closest('.card'); if(card) selectEntry(card.dataset.id); };
   $('firstBtn').onclick = () => { page=0; renderList(); };
