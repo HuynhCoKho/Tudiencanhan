@@ -438,12 +438,20 @@ async function importJson(files){
       catch { throw new Error(`${file.name}: file JSON bị lỗi định dạng.`); }
       const rows = Array.isArray(data) ? data : (data.entries || []);
       if (!Array.isArray(rows)) throw new Error(`${file.name}: không tìm thấy mảng entries.`);
-      for (const raw of rows){
-        const entry = cleanEntry({ ...raw, sourceName: raw.sourceName || file.name });
-        const idx   = customEntries.findIndex(e => e.id===entry.id || contentKey(e)===contentKey(entry));
-        if (idx>=0){ customEntries[idx] = { ...customEntries[idx], ...entry }; updated++; }
-        else        { customEntries.unshift(entry); added++; }
-        deletedIds.delete(entry.id);
+      // Xử lý từng batch 100 mục để không treo UI
+      const BATCH = 100;
+      for (let i = 0; i < rows.length; i += BATCH){
+        const batch = rows.slice(i, i + BATCH);
+        for (const raw of batch){
+          const entry = cleanEntry({ ...raw, sourceName: raw.sourceName || file.name });
+          const idx   = customEntries.findIndex(e => e.id===entry.id || contentKey(e)===contentKey(entry));
+          if (idx>=0){ customEntries[idx] = { ...customEntries[idx], ...entry }; updated++; }
+          else        { customEntries.unshift(entry); added++; }
+          deletedIds.delete(entry.id);
+        }
+        // Nhả UI thread sau mỗi batch
+        await new Promise(r => setTimeout(r, 0));
+        toast(`Đang nhập... ${Math.min(i + BATCH, rows.length)}/${rows.length} mục`);
       }
     }
     toast('Đang lưu lên Google Drive...');
@@ -552,7 +560,10 @@ function toggleDonate(){
 function bind(){
   $('searchBtn').onclick       = () => { page=0; applySearch(); };
   $('query').addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); page=0; applySearch(); } });
-  $('query').addEventListener('input', () => { page=0; applySearch(); });
+  $('query').addEventListener('input', () => {
+    clearTimeout($('query')._t);
+    $('query')._t = setTimeout(() => { page=0; applySearch(); }, 300);
+  });
   $('languageFilter').onchange = () => { page=0; applySearch(); };
   $('list').onclick = e => { const card=e.target.closest('.card'); if(card) selectEntry(card.dataset.id); };
   $('firstBtn').onclick = () => { page=0; renderList(); };
