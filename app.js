@@ -322,8 +322,8 @@ function selectEntry(id){
   $('category').value           = entry.category || '';
   $('meaning').value            = entry.meaning || '';
   $('example').value            = entry.example || '';
-  currentImage                  = entry.image || '';
-  $('preview').src              = currentImage || '';
+  currentImage = entry.image || '';
+  showImage(currentImage);
   renderList();
 }
 function newEntry(){
@@ -334,7 +334,7 @@ function newEntry(){
   $('id').value             = '';
   $('sourceLanguage').value = 'Việt';
   $('targetLanguage').value = 'Anh';
-  $('preview').removeAttribute('src');
+  showImage('');
 }
 function formEntry(){
   return cleanEntry({
@@ -479,10 +479,22 @@ function compressImage(file){
     img.src = URL.createObjectURL(file);
   });
 }
+function showImage(src){
+  const drop = $('dropZone'), prev = $('preview');
+  if (src){
+    prev.src = src;
+    drop.style.display = 'none';
+    prev.style.display = 'block';
+  } else {
+    prev.src = '';
+    prev.style.display = 'none';
+    drop.style.display = '';
+  }
+}
 async function setImage(file){
   if (!file) return;
   currentImage = await compressImage(file);
-  $('preview').src = currentImage;
+  showImage(currentImage);
   toast('Ảnh đã được nén trước khi lưu.');
 }
 
