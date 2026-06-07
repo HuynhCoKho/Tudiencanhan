@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Từ điển cá nhân</title>
-  <link rel="stylesheet" href="styles.css?v=20260607-fix-import3">
+  <link rel="stylesheet" href="styles.css?v=20260607-importfix7">
 </head>
 <body>
   <main class="app">
@@ -17,8 +17,7 @@
         <div class="top-buttons">
           <button id="dedupeBtn" type="button">Xóa trùng</button>
           <button id="exportBtn" type="button">Xuất JSON</button>
-          <button id="importBtn" type="button">Nhập JSON</button>
-          <input id="importFile" class="visually-hidden-file" type="file" accept=".json,application/json" multiple>
+          <label id="importBtn" class="button file-btn" for="importFile" role="button" tabindex="0">Nhập JSON</label><input id="importFile" class="visually-hidden-file" type="file" accept=".json,application/json" multiple>
         </div>
         <div class="support-box">
           <span class="author">Author: Huỳnh Cỏ Khô</span>
@@ -30,7 +29,7 @@
               <button id="momoBtn" type="button">MoMo QR</button>
             </div>
             <div id="qrBox" class="qr-box" hidden>
-              <img src="assets/momo-qr.svg?v=20260607-fix-import3" alt="MoMo QR Huỳnh Cỏ Khô">
+              <img src="assets/momo-qr.svg?v=20260607-importfix7" alt="MoMo QR Huỳnh Cỏ Khô">
             </div>
           </div>
         </div>
@@ -39,8 +38,8 @@
 
     <section class="searchbar">
       <label>Tìm từ<input id="query" type="search" placeholder="Tìm trong từ/cụm từ gốc hoặc bản dịch..."></label>
-      <button id="searchBtn" type="button">Tìm</button>
       <label class="lang-filter">Ngôn ngữ<select id="languageFilter"></select></label>
+      <button id="searchBtn" type="button">Tìm</button>
     </section>
 
     <section class="workspace">
@@ -92,6 +91,6 @@
 
   <div id="symbolsPanel" class="symbols" hidden></div>
   <div id="toast" class="toast" role="status" hidden></div>
-  <script src="app.js?v=20260607-fix-import3"></script>
+  <script src="app.js?v=20260607-importfix7"></script>
 </body>
 </html>
