@@ -340,13 +340,14 @@ function bind(){
   $('deleteBtn').onclick = deleteEntry;
   $('dedupeBtn').onclick = removeDuplicates;
   $('exportBtn').onclick = exportJson;
-  $('importBtn').addEventListener('click', e => {
-    e.preventDefault();
-    if ($('importBtn').getAttribute('aria-disabled') === 'true') return;
-    $('importFile').click();
+  $('importBtn').addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if ($('importBtn').getAttribute('aria-disabled') !== 'true') $('importFile').click();
+    }
   });
 
-  $('importFile').onchange = e => importJson([...e.target.files]);
+  $('importFile').addEventListener('change', e => importJson([...e.target.files]));
   $('imageFile').onchange = e => setImage(e.target.files[0]);
   $('dropZone').ondragover = e => { e.preventDefault(); $('dropZone').classList.add('drag'); };
   $('dropZone').ondragleave = () => $('dropZone').classList.remove('drag');
@@ -393,8 +394,3 @@ async function init(){
   applySearch();
 }
 init();
-
-
-
-
-
