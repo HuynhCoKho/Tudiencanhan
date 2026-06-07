@@ -2,8 +2,9 @@
 // CẤU HÌNH GOOGLE DRIVE
 // ============================================================
 const GDRIVE_CLIENT_ID = '806114616037-tk1ohpbv8vhh0ftsk1igei9u7np5jk5u.apps.googleusercontent.com';
-const GDRIVE_FILE_ID   = '14wpgbHB22SVlie6_VNvE5yc5b1BQIu4n';
-const GDRIVE_SCOPE     = 'https://www.googleapis.com/auth/drive';
+const GDRIVE_FILE_NAME = 'personal_dictionary_data.json';
+const GDRIVE_SCOPE     = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive';
+let gDriveFileId = null; // sẽ tự tìm hoặc tạo khi cần
 
 // ============================================================
 // HẰNG SỐ & BIẾN TOÀN CỤC
@@ -84,19 +85,74 @@ async function ensureToken(){
   return await gSignIn();
 }
 
-async function gDriveWriteFile(data){
-  const token = await ensureToken();
-  const blob  = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const res   = await fetch(
-    `https://www.googleapis.com/upload/drive/v3/files/${GDRIVE_FILE_ID}?uploadType=media`,
+/** Tìm file theo tên trong Drive, trả về fileId hoặc null */
+async function gDriveFindFile(token){
+  const q = encodeURIComponent(`name='${GDRIVE_FILE_NAME}' and trashed=false`);
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&pageSize=5`,
+    { headers: { Authorization: 'Bearer ' + token } }
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  return (data.files && data.files.length > 0) ? data.files[0].id : null;
+}
+
+/** Tạo file mới trên Drive, trả về fileId */
+async function gDriveCreateFile(token, content){
+  const metadata = { name: GDRIVE_FILE_NAME, mimeType: 'application/json' };
+  const boundary = 'dicboundary';
+  const body = [
+    `--${boundary}`,
+    'Content-Type: application/json; charset=UTF-8',
+    '',
+    JSON.stringify(metadata),
+    `--${boundary}`,
+    'Content-Type: application/json',
+    '',
+    content,
+    `--${boundary}--`
+  ].join('\r\n');
+  const res = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+    {
+      method : 'POST',
+      headers: {
+        Authorization : 'Bearer ' + token,
+        'Content-Type': `multipart/related; boundary=${boundary}`
+      },
+      body
+    }
+  );
+  if (!res.ok) throw new Error('Không tạo được file Drive: ' + res.status);
+  const data = await res.json();
+  return data.id;
+}
+
+/** Ghi đè nội dung vào file đã có */
+async function gDriveUpdateFile(token, fileId, content){
+  const res = await fetch(
+    `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
     {
       method : 'PATCH',
       headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-      body   : blob
+      body   : content
     }
   );
   if (!res.ok) throw new Error('Không ghi được file Drive: ' + res.status + ' ' + res.statusText);
   return await res.json();
+}
+
+/** Ghi dữ liệu: tự tìm file, nếu chưa có thì tạo mới */
+async function gDriveWriteFile(data){
+  const token   = await ensureToken();
+  const content = JSON.stringify(data, null, 2);
+  // Tìm fileId nếu chưa có
+  if (!gDriveFileId) gDriveFileId = await gDriveFindFile(token);
+  if (gDriveFileId){
+    await gDriveUpdateFile(token, gDriveFileId, content);
+  } else {
+    gDriveFileId = await gDriveCreateFile(token, content);
+  }
 }
 
 function updateDriveStatus(connected){
@@ -128,8 +184,11 @@ async function saveToDrive(){
 async function loadFromDrive(){
   try {
     const token = await ensureToken();
+    // Tìm file theo tên
+    if (!gDriveFileId) gDriveFileId = await gDriveFindFile(token);
+    if (!gDriveFileId) return []; // chưa có file, lần đầu dùng
     const res = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${GDRIVE_FILE_ID}?alt=media`,
+      `https://www.googleapis.com/drive/v3/files/${gDriveFileId}?alt=media`,
       { headers: { Authorization: 'Bearer ' + token } }
     );
     if (!res.ok) return [];
