@@ -340,14 +340,28 @@ function bind(){
   $('deleteBtn').onclick = deleteEntry;
   $('dedupeBtn').onclick = removeDuplicates;
   $('exportBtn').onclick = exportJson;
+  function openImportPicker(){
+    const btn = $('importBtn');
+    const input = $('importFile');
+    if (!input) return toast('Không tìm thấy ô chọn file JSON.');
+    if (btn && btn.getAttribute('aria-disabled') === 'true') return;
+    input.click();
+  }
+
+  $('importBtn').addEventListener('click', openImportPicker);
   $('importBtn').addEventListener('keydown', e => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      if ($('importBtn').getAttribute('aria-disabled') !== 'true') $('importFile').click();
+      openImportPicker();
     }
   });
 
-  $('importFile').addEventListener('change', e => importJson([...e.target.files]));
+  $('importFile').addEventListener('click', e => { e.target.value = ''; });
+  $('importFile').addEventListener('change', e => {
+    const files = [...e.target.files];
+    if (!files.length) return toast('Bạn chưa chọn file JSON.');
+    importJson(files);
+  });
   $('imageFile').onchange = e => setImage(e.target.files[0]);
   $('dropZone').ondragover = e => { e.preventDefault(); $('dropZone').classList.add('drag'); };
   $('dropZone').ondragleave = () => $('dropZone').classList.remove('drag');
