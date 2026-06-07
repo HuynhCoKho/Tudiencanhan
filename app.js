@@ -1,65 +1,176 @@
-const DATA_URL = './data/dictionary.json';
-const PERSONAL_DATA_URL = './data/personal_dictionary_data.json';
-const CUSTOM_KEY = 'tdcn_custom_entries_v1';
-const DELETED_KEY = 'tdcn_deleted_entries_v1';
-const PAGE_SIZE = 40;
-const LANGS = ['Tất cả','Anh','Việt','Trung','Thái','Nhật','Hàn','Pháp','Đức','Nga','Khác'];
-const LANGUAGE_LABELS = {all:'Tất cả', 'tat ca':'Tất cả', anh:'Anh', english:'Anh', en:'Anh', viet:'Việt', vi:'Việt', vietnamese:'Việt', trung:'Trung', chinese:'Trung', zh:'Trung', thai:'Thái', th:'Thái', nhat:'Nhật', japanese:'Nhật', ja:'Nhật', han:'Hàn', korean:'Hàn', ko:'Hàn', phap:'Pháp', french:'Pháp', fr:'Pháp', duc:'Đức', german:'Đức', de:'Đức', nga:'Nga', russian:'Nga', ru:'Nga', khac:'Khác', other:'Khác' };
-const $ = id => document.getElementById(id);
-const collator = new Intl.Collator('vi', { numeric: true, sensitivity: 'base' });
-let baseEntries = [], customEntries = [], deletedIds = new Set(), visibleEntries = [], page = 0, selectedId = '';
-let currentImage = '';
+// ============================================================
+// CẤU HÌNH GOOGLE DRIVE
+// ============================================================
+const GDRIVE_CLIENT_ID = '806114616037-tk1ohpbv8vhh0ftsk1igei9u7np5jk5u.apps.googleusercontent.com';
+const GDRIVE_FILE_ID   = '14wpgbHB22SVlie6_VNvE5yc5b1BQIu4n';
+const GDRIVE_SCOPE     = 'https://www.googleapis.com/auth/drive.file';
 
+// ============================================================
+// HẰNG SỐ & BIẾN TOÀN CỤC
+// ============================================================
+const DATA_URL    = './data/dictionary.json';
+const PAGE_SIZE   = 40;
+const LANGS       = ['Tất cả','Anh','Việt','Trung','Thái','Nhật','Hàn','Pháp','Đức','Nga','Khác'];
+const LANGUAGE_LABELS = {
+  all:'Tất cả','tat ca':'Tất cả',
+  anh:'Anh', english:'Anh', en:'Anh',
+  viet:'Việt', vi:'Việt', vietnamese:'Việt',
+  trung:'Trung', chinese:'Trung', zh:'Trung',
+  thai:'Thái', th:'Thái',
+  nhat:'Nhật', japanese:'Nhật', ja:'Nhật',
+  han:'Hàn', korean:'Hàn', ko:'Hàn',
+  phap:'Pháp', french:'Pháp', fr:'Pháp',
+  duc:'Đức', german:'Đức', de:'Đức',
+  nga:'Nga', russian:'Nga', ru:'Nga',
+  khac:'Khác', other:'Khác'
+};
+
+const $        = id => document.getElementById(id);
+const collator = new Intl.Collator('vi', { numeric: true, sensitivity: 'base' });
+
+let baseEntries    = [];
+let customEntries  = [];
+let deletedIds     = new Set();
+let visibleEntries = [];
+let page           = 0;
+let selectedId     = '';
+let currentImage   = '';
+
+// Google Drive token
+let gAccessToken = null;
+
+// ============================================================
+// TIỆN ÍCH CHUNG
+// ============================================================
 function normalizeLanguage(value){
   const raw = String(value || '').trim();
   const key = raw.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   return LANGUAGE_LABELS[key] || raw || 'Khác';
 }
 function searchText(value){ return String(value || '').toLocaleLowerCase('vi').trim(); }
-function makeId(){ return 'u_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8); }
-function toast(message){ $('toast').textContent = message; $('toast').hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => $('toast').hidden = true, 3200); }
-function loadLocal(){
-  try {
-    customEntries = JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]').map(cleanEntry);
-    deletedIds = new Set(JSON.parse(localStorage.getItem(DELETED_KEY) || '[]'));
-  } catch (error) {
-    customEntries = [];
-    deletedIds = new Set();
-    toast('Dữ liệu lưu trong trình duyệt bị lỗi, app đã bỏ qua bản lỗi.');
+function makeId(){ return 'u_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
+function toast(message){
+  $('toast').textContent = message;
+  $('toast').hidden = false;
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => $('toast').hidden = true, 3200);
+}
+
+// ============================================================
+// GOOGLE DRIVE AUTH & API
+// ============================================================
+
+function gSignIn(){
+  return new Promise((resolve, reject) => {
+    if (!window.google || !window.google.accounts) {
+      return reject(new Error('Thư viện Google chưa tải xong, thử lại sau vài giây.'));
+    }
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: GDRIVE_CLIENT_ID,
+      scope: GDRIVE_SCOPE,
+      callback: (resp) => {
+        if (resp.error) return reject(new Error('Đăng nhập Google thất bại: ' + resp.error));
+        gAccessToken = resp.access_token;
+        updateDriveStatus(true);
+        resolve(resp.access_token);
+      }
+    });
+    client.requestAccessToken();
+  });
+}
+
+async function ensureToken(){
+  if (gAccessToken) return gAccessToken;
+  return await gSignIn();
+}
+
+async function gDriveWriteFile(data){
+  const token = await ensureToken();
+  const blob  = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const res   = await fetch(
+    `https://www.googleapis.com/upload/drive/v3/files/${GDRIVE_FILE_ID}?uploadType=media`,
+    {
+      method : 'PATCH',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body   : blob
+    }
+  );
+  if (!res.ok) throw new Error('Không ghi được file Drive: ' + res.status + ' ' + res.statusText);
+  return await res.json();
+}
+
+function updateDriveStatus(connected){
+  const btn = $('driveBtn');
+  if (!btn) return;
+  if (connected){
+    btn.textContent = '✓ Drive đã kết nối';
+    btn.style.borderColor = 'var(--accent)';
+    btn.style.color = 'var(--accent)';
+  } else {
+    btn.textContent = 'Kết nối Drive';
+    btn.style.borderColor = '';
+    btn.style.color = '';
   }
 }
-function saveLocal(){
+
+// ============================================================
+// LƯU / TẢI DỮ LIỆU
+// ============================================================
+async function saveToDrive(){
+  const data = {
+    entries    : customEntries,
+    deletedIds : [...deletedIds],
+    savedAt    : new Date().toISOString()
+  };
+  await gDriveWriteFile(data);
+}
+
+async function loadFromDrive(){
   try {
-    localStorage.setItem(CUSTOM_KEY, JSON.stringify(customEntries));
-    localStorage.setItem(DELETED_KEY, JSON.stringify([...deletedIds]));
-  } catch (error) {
-    throw new Error('Bộ nhớ trình duyệt không đủ để lưu dữ liệu này. Hãy nhập file nhỏ hơn hoặc dùng nút Xuất JSON để lưu ra file riêng.');
+    const token = await ensureToken();
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${GDRIVE_FILE_ID}?alt=media`,
+      { headers: { Authorization: 'Bearer ' + token } }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (Array.isArray(data.deletedIds)){
+      data.deletedIds.forEach(id => deletedIds.add(id));
+    }
+    return Array.isArray(data) ? data : (data.entries || []);
+  } catch {
+    return [];
   }
 }
+
 async function loadDictionaryFile(url){
   const response = await fetch(url, { cache: 'no-store' });
   if (!response.ok) throw new Error(response.status + ' ' + response.statusText);
   const data = await response.json();
   return (Array.isArray(data) ? data : data.entries || []).map(cleanEntry);
 }
+
+// ============================================================
+// ENTRY HELPERS
+// ============================================================
 function cleanEntry(entry){
   return {
-    id: entry.id || makeId(),
-    headword: entry.headword || entry.foreignTerm || entry.vietnamese || '',
-    translation: entry.translation || entry.meaning || '',
+    id            : entry.id || makeId(),
+    headword      : entry.headword || entry.foreignTerm || entry.vietnamese || '',
+    translation   : entry.translation || entry.meaning || '',
     sourceLanguage: normalizeLanguage(entry.sourceLanguage || entry.language || 'Việt'),
     targetLanguage: normalizeLanguage(entry.targetLanguage || (entry.language === 'Viet' ? 'Anh' : 'Việt')),
-    pronunciation: entry.pronunciation || '',
-    category: entry.category || '',
-    meaning: entry.meaning || '',
-    example: entry.example || '',
-    image: entry.image || '',
-    sourceName: entry.sourceName || ''
+    pronunciation : entry.pronunciation || '',
+    category      : entry.category || '',
+    meaning       : entry.meaning || '',
+    example       : entry.example || '',
+    image         : entry.image || '',
+    sourceName    : entry.sourceName || ''
   };
 }
 function allEntries(){
   const map = new Map();
-  baseEntries.forEach(e => { if (!deletedIds.has(e.id)) map.set(e.id, e); });
+  baseEntries.forEach(e   => { if (!deletedIds.has(e.id)) map.set(e.id, e); });
   customEntries.forEach(e => { if (!deletedIds.has(e.id)) map.set(e.id, e); });
   return [...map.values()];
 }
@@ -72,139 +183,154 @@ function contentKey(entry){
   ].join('|');
 }
 function dedupeEntries(entries){
-  const byId = new Map();
-  const contentToId = new Map();
+  const byId = new Map(), contentToId = new Map();
   entries.forEach(entry => {
     const key = contentKey(entry);
-    const id = entry.id || 'content:' + key;
+    const id  = entry.id || 'content:' + key;
     const existingId = contentToId.get(key);
-    if (existingId) {
-      byId.set(existingId, entry);
-      return;
-    }
+    if (existingId){ byId.set(existingId, entry); return; }
     contentToId.set(key, id);
     byId.set(id, entry);
   });
   return [...byId.values()];
 }
 function entrySummary(entry){ return entry.translation || entry.meaning || entry.example || ''; }
-function sortEntries(items){ return items.sort((a,b) => collator.compare(a.headword || '', b.headword || '')); }
+function sortEntries(items){ return items.sort((a,b) => collator.compare(a.headword||'', b.headword||'')); }
 function rank(entry, q){
   const h = searchText(entry.headword), t = searchText(entry.translation);
-  if (h === q) return 0;
-  if (t === q) return 1;
-  if (h.startsWith(q)) return 2;
-  if (t.startsWith(q)) return 3;
-  if (h.includes(q)) return 4;
-  if (t.includes(q)) return 5;
+  if (h===q) return 0; if (t===q) return 1;
+  if (h.startsWith(q)) return 2; if (t.startsWith(q)) return 3;
+  if (h.includes(q))   return 4; if (t.includes(q))   return 5;
   return 99;
 }
+
+// ============================================================
+// RENDER
+// ============================================================
 function applySearch(){
-  const q = searchText($('query').value);
+  const q    = searchText($('query').value);
   const lang = $('languageFilter').value;
-  let items = allEntries();
-  if (lang && lang !== 'Tất cả') items = items.filter(e => e.sourceLanguage === lang || e.targetLanguage === lang);
-  if (q) {
+  let items  = allEntries();
+  if (lang && lang !== 'Tất cả') items = items.filter(e => e.sourceLanguage===lang || e.targetLanguage===lang);
+  if (q){
     items = items
       .filter(e => searchText(e.headword).includes(q) || searchText(e.translation).includes(q))
-      .sort((a,b) => rank(a,q) - rank(b,q) || collator.compare(a.headword || '', b.headword || ''));
+      .sort((a,b) => rank(a,q)-rank(b,q) || collator.compare(a.headword||'',b.headword||''));
   } else {
     items = sortEntries(items);
   }
   visibleEntries = items;
-  page = Math.min(page, Math.max(0, Math.ceil(items.length / PAGE_SIZE) - 1));
+  page = Math.min(page, Math.max(0, Math.ceil(items.length/PAGE_SIZE)-1));
   renderList();
-  if (visibleEntries.length) selectEntry(visibleEntries[page * PAGE_SIZE].id);
+  if (visibleEntries.length) selectEntry(visibleEntries[page*PAGE_SIZE].id);
   else newEntry();
 }
 function renderList(){
   $('count').textContent = visibleEntries.length + ' mục từ';
   const start = page * PAGE_SIZE;
-  const rows = visibleEntries.slice(start, start + PAGE_SIZE);
-  const html = rows.map(e => {
-    const active = e.id === selectedId ? ' active' : '';
-    const img = e.image ? `<img class="thumb" src="${escapeAttr(e.image)}" alt="">` : '<div class="thumb empty">Ảnh</div>';
+  const rows  = visibleEntries.slice(start, start+PAGE_SIZE);
+  const html  = rows.map(e => {
+    const active = e.id===selectedId ? ' active' : '';
+    const img = e.image
+      ? `<img class="thumb" src="${escapeAttr(e.image)}" alt="">`
+      : '<div class="thumb empty">Ảnh</div>';
     return `<article class="card${active}" data-id="${escapeAttr(e.id)}">${img}<div><div class="term">${escapeHtml(e.headword)}</div><div class="translation">${escapeHtml(entrySummary(e))}</div></div></article>`;
   }).join('');
   $('list').innerHTML = html || '<p class="empty-note">Chưa có mục phù hợp.</p>';
-  $('firstBtn').disabled = $('prevBtn').disabled = page <= 0;
-  $('nextBtn').disabled = $('lastBtn').disabled = start + PAGE_SIZE >= visibleEntries.length;
+  $('firstBtn').disabled = $('prevBtn').disabled = page<=0;
+  $('nextBtn').disabled  = $('lastBtn').disabled  = start+PAGE_SIZE >= visibleEntries.length;
 }
 function fillLanguages(){
   ['languageFilter','sourceLanguage','targetLanguage'].forEach(id => {
-    $(id).innerHTML = LANGS.filter(l => id === 'languageFilter' || l !== 'Tất cả').map(l => `<option value="${l}">${l}</option>`).join('');
+    $(id).innerHTML = LANGS
+      .filter(l => id==='languageFilter' || l!=='Tất cả')
+      .map(l => `<option value="${l}">${l}</option>`).join('');
   });
   $('sourceLanguage').value = 'Việt';
   $('targetLanguage').value = 'Anh';
 }
 function selectEntry(id){
-  const entry = allEntries().find(e => e.id === id);
+  const entry = allEntries().find(e => e.id===id);
   if (!entry) return;
   selectedId = id;
-  $('formTitle').textContent = 'Sửa mục từ';
-  $('id').value = entry.id;
-  $('headword').value = entry.headword || '';
-  $('translation').value = entry.translation || '';
-  $('sourceLanguage').value = normalizeLanguage(entry.sourceLanguage);
-  $('targetLanguage').value = normalizeLanguage(entry.targetLanguage);
-  $('pronunciation').value = entry.pronunciation || '';
-  $('category').value = entry.category || '';
-  $('meaning').value = entry.meaning || '';
-  $('example').value = entry.example || '';
-  currentImage = entry.image || '';
-  $('preview').src = currentImage || '';
+  $('formTitle').textContent    = 'Sửa mục từ';
+  $('id').value                 = entry.id;
+  $('headword').value           = entry.headword || '';
+  $('translation').value        = entry.translation || '';
+  $('sourceLanguage').value     = normalizeLanguage(entry.sourceLanguage);
+  $('targetLanguage').value     = normalizeLanguage(entry.targetLanguage);
+  $('pronunciation').value      = entry.pronunciation || '';
+  $('category').value           = entry.category || '';
+  $('meaning').value            = entry.meaning || '';
+  $('example').value            = entry.example || '';
+  currentImage                  = entry.image || '';
+  $('preview').src              = currentImage || '';
   renderList();
 }
 function newEntry(){
-  selectedId = '';
+  selectedId   = '';
   currentImage = '';
   $('formTitle').textContent = 'Thêm mục từ';
   $('entryForm').reset();
-  $('id').value = '';
+  $('id').value             = '';
   $('sourceLanguage').value = 'Việt';
   $('targetLanguage').value = 'Anh';
   $('preview').removeAttribute('src');
 }
 function formEntry(){
   return cleanEntry({
-    id: $('id').value || makeId(),
-    headword: $('headword').value.trim(),
-    translation: $('translation').value.trim(),
+    id            : $('id').value || makeId(),
+    headword      : $('headword').value.trim(),
+    translation   : $('translation').value.trim(),
     sourceLanguage: $('sourceLanguage').value,
     targetLanguage: $('targetLanguage').value,
-    pronunciation: $('pronunciation').value.trim(),
-    category: $('category').value.trim(),
-    meaning: $('meaning').value.trim(),
-    example: $('example').value.trim(),
-    image: currentImage,
-    sourceName: $('id').value ? 'Tự sửa trên web' : 'Tự thêm trên web'
+    pronunciation : $('pronunciation').value.trim(),
+    category      : $('category').value.trim(),
+    meaning       : $('meaning').value.trim(),
+    example       : $('example').value.trim(),
+    image         : currentImage,
+    sourceName    : $('id').value ? 'Tự sửa trên web' : 'Tự thêm trên web'
   });
 }
-function saveEntry(event){
+
+// ============================================================
+// CRUD — lưu lên Drive
+// ============================================================
+async function saveEntry(event){
   event.preventDefault();
   const entry = formEntry();
   if (!entry.headword) return toast('Bạn cần nhập từ / cụm từ gốc.');
-  const idx = customEntries.findIndex(e => e.id === entry.id);
-  if (idx >= 0) customEntries[idx] = entry;
+  const idx = customEntries.findIndex(e => e.id===entry.id);
+  if (idx>=0) customEntries[idx] = entry;
   else customEntries.unshift(entry);
   deletedIds.delete(entry.id);
-  saveLocal();
   selectedId = entry.id;
   applySearch();
-  toast('Đã lưu mục từ.');
+  toast('Đang lưu lên Google Drive...');
+  try {
+    await saveToDrive();
+    toast('Đã lưu mục từ lên Google Drive ✓');
+  } catch(err){
+    toast('Lưu Drive thất bại: ' + err.message);
+  }
 }
-function deleteEntry(){
+async function deleteEntry(){
   const id = $('id').value;
   if (!id) return;
   if (!confirm('Xóa mục từ này?')) return;
   deletedIds.add(id);
-  customEntries = customEntries.filter(e => e.id !== id);
-  saveLocal();
+  customEntries = customEntries.filter(e => e.id!==id);
   selectedId = '';
   applySearch();
-  toast('Đã xóa mục từ.');
+  toast('Đang lưu lên Google Drive...');
+  try {
+    await saveToDrive();
+    toast('Đã xóa mục từ ✓');
+  } catch(err){
+    toast('Lưu Drive thất bại: ' + err.message);
+  }
 }
-function removeDuplicates(){
+async function removeDuplicates(){
   const seen = new Map(), remove = [];
   allEntries().forEach(e => {
     const key = `${searchText(e.headword)}|${searchText(e.translation)}|${e.sourceLanguage}|${e.targetLanguage}`;
@@ -212,81 +338,81 @@ function removeDuplicates(){
     else seen.set(key, e.id);
   });
   remove.forEach(id => deletedIds.add(id));
-  saveLocal();
   applySearch();
-  toast(`Đã xóa ${remove.length} mục trùng.`);
+  toast('Đang lưu lên Google Drive...');
+  try {
+    await saveToDrive();
+    toast(`Đã xóa ${remove.length} mục trùng ✓`);
+  } catch(err){
+    toast('Lưu Drive thất bại: ' + err.message);
+  }
 }
+
+// ============================================================
+// EXPORT / IMPORT JSON
+// ============================================================
 function exportJson(){
   const data = { entries: allEntries(), exportedAt: new Date().toISOString() };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
   a.download = 'tu-dien-ca-nhan.json';
   a.click();
   URL.revokeObjectURL(a.href);
 }
+
 async function importJson(files){
   if (!files || !files.length) return toast('Bạn chưa chọn file JSON.');
-  const importBtn = $('importBtn');
+  const importBtn   = $('importBtn');
   const importInput = $('importFile');
-  if (importBtn) {
-    importBtn.setAttribute('aria-disabled', 'true');
-    importBtn.style.pointerEvents = 'none';
-  }
+  if (importBtn){ importBtn.setAttribute('aria-disabled','true'); importBtn.style.pointerEvents='none'; }
+
   let added = 0, updated = 0;
-  // Sao lưu để rollback nếu lưu thất bại (ví dụ: localStorage đầy)
-  const backupCustom = [...customEntries];
+  const backupCustom  = [...customEntries];
   const backupDeleted = new Set(deletedIds);
   try {
     toast(`Đang nhập ${files.length} file JSON...`);
-    for (const file of files) {
+    for (const file of files){
       const text = await file.text();
       let data;
-      try {
-        data = JSON.parse(text);
-      } catch (parseError) {
-        throw new Error(`${file.name}: file JSON bị lỗi định dạng, không đọc được.`);
-      }
+      try { data = JSON.parse(text); }
+      catch { throw new Error(`${file.name}: file JSON bị lỗi định dạng.`); }
       const rows = Array.isArray(data) ? data : (data.entries || []);
-      if (!Array.isArray(rows)) throw new Error(`${file.name}: định dạng JSON không có mảng entries.`);
-      for (const raw of rows) {
+      if (!Array.isArray(rows)) throw new Error(`${file.name}: không tìm thấy mảng entries.`);
+      for (const raw of rows){
         const entry = cleanEntry({ ...raw, sourceName: raw.sourceName || file.name });
-        const idx = customEntries.findIndex(e => e.id === entry.id || contentKey(e) === contentKey(entry));
-        if (idx >= 0) {
-          customEntries[idx] = { ...customEntries[idx], ...entry };
-          updated += 1;
-        } else {
-          customEntries.unshift(entry);
-          added += 1;
-        }
+        const idx   = customEntries.findIndex(e => e.id===entry.id || contentKey(e)===contentKey(entry));
+        if (idx>=0){ customEntries[idx] = { ...customEntries[idx], ...entry }; updated++; }
+        else        { customEntries.unshift(entry); added++; }
         deletedIds.delete(entry.id);
       }
     }
-    saveLocal(); // Nếu lỗi ở đây (localStorage đầy), catch sẽ rollback
+    toast('Đang lưu lên Google Drive...');
+    await saveToDrive();
     page = 0;
     applySearch();
-    toast(`Đã nhập ${added} mục mới, cập nhật ${updated} mục.`);
-  } catch (error) {
-    // Rollback về trạng thái trước khi import để tránh dữ liệu nửa vời
+    toast(`Đã nhập ${added} mục mới, cập nhật ${updated} mục. Đã lưu Drive ✓`);
+  } catch(err){
     customEntries = backupCustom;
-    deletedIds = backupDeleted;
-    toast('Không nhập được file: ' + (error && error.message ? error.message : error));
+    deletedIds    = backupDeleted;
+    toast('Không nhập được: ' + (err && err.message ? err.message : err));
   } finally {
-    if (importBtn) {
-      importBtn.removeAttribute('aria-disabled');
-      importBtn.style.pointerEvents = '';
-    }
+    if (importBtn){ importBtn.removeAttribute('aria-disabled'); importBtn.style.pointerEvents=''; }
     if (importInput) importInput.value = '';
   }
 }
+
+// ============================================================
+// ẢNH
+// ============================================================
 function compressImage(file){
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      const maxW = 420, maxH = 280, ratio = Math.min(maxW / img.width, maxH / img.height, 1);
+      const maxW=420, maxH=280, ratio=Math.min(maxW/img.width, maxH/img.height, 1);
       const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(img.width * ratio));
-      canvas.height = Math.max(1, Math.round(img.height * ratio));
+      canvas.width  = Math.max(1, Math.round(img.width*ratio));
+      canvas.height = Math.max(1, Math.round(img.height*ratio));
       canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
       resolve(canvas.toDataURL('image/jpeg', 0.78));
     };
@@ -300,36 +426,47 @@ async function setImage(file){
   $('preview').src = currentImage;
   toast('Ảnh đã được nén trước khi lưu.');
 }
+
+// ============================================================
+// PHÁT ÂM
+// ============================================================
 function speak(text, lang){
-  const value = String(text || '').trim();
+  const value = String(text||'').trim();
   if (!value) return toast('Chưa có nội dung để phát âm.');
-  if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') return toast('Trình duyệt này chưa hỗ trợ phát âm.');
+  if (!('speechSynthesis' in window)) return toast('Trình duyệt chưa hỗ trợ phát âm.');
   const utter = new SpeechSynthesisUtterance(value);
-  const map = { 'Việt':'vi-VN', 'Anh':'en-US', 'Thái':'th-TH', 'Trung':'zh-CN', 'Nhật':'ja-JP', 'Hàn':'ko-KR', 'Pháp':'fr-FR', 'Đức':'de-DE', 'Nga':'ru-RU' };
-  utter.lang = map[lang] || 'vi-VN';
+  const map   = {'Việt':'vi-VN','Anh':'en-US','Thái':'th-TH','Trung':'zh-CN','Nhật':'ja-JP','Hàn':'ko-KR','Pháp':'fr-FR','Đức':'de-DE','Nga':'ru-RU'};
+  utter.lang  = map[lang] || 'vi-VN';
   window.speechSynthesis.cancel();
   window.speechSynthesis.speak(utter);
 }
-function escapeHtml(s){ return String(s || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-function escapeAttr(s){ return escapeHtml(s).replace(/'/g, '&#39;'); }
+
+// ============================================================
+// ESCAPE
+// ============================================================
+function escapeHtml(s){ return String(s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function escapeAttr(s){ return escapeHtml(s).replace(/'/g,'&#39;'); }
 function insertAtCursor(input, text){
   const start = input.selectionStart ?? input.value.length;
-  const end = input.selectionEnd ?? input.value.length;
-  input.value = input.value.slice(0, start) + text + input.value.slice(end);
+  const end   = input.selectionEnd   ?? input.value.length;
+  input.value = input.value.slice(0,start) + text + input.value.slice(end);
   input.focus();
-  input.setSelectionRange(start + text.length, start + text.length);
+  input.setSelectionRange(start+text.length, start+text.length);
 }
+
+// ============================================================
+// SYMBOLS PANEL & DONATE
+// ============================================================
 function showSymbolsPanel(){
-  const panel = $('symbolsPanel');
-  const input = $('pronunciation');
-  const rect = input.getBoundingClientRect();
+  const panel = $('symbolsPanel'), input = $('pronunciation');
+  const rect  = input.getBoundingClientRect();
   panel.hidden = false;
-  const width = Math.min(520, window.innerWidth - 32);
-  let left = rect.left + window.scrollX;
-  if (left + width > window.scrollX + window.innerWidth - 16) left = window.scrollX + window.innerWidth - width - 16;
-  panel.style.width = width + 'px';
-  panel.style.left = Math.max(16, left) + 'px';
-  panel.style.top = (rect.bottom + window.scrollY + 8) + 'px';
+  const width  = Math.min(520, window.innerWidth-32);
+  let left     = rect.left + window.scrollX;
+  if (left+width > window.scrollX+window.innerWidth-16) left = window.scrollX+window.innerWidth-width-16;
+  panel.style.width = width+'px';
+  panel.style.left  = Math.max(16,left)+'px';
+  panel.style.top   = (rect.bottom+window.scrollY+8)+'px';
 }
 function hideSymbolsPanel(){ $('symbolsPanel').hidden = true; }
 function toggleDonate(){
@@ -337,85 +474,112 @@ function toggleDonate(){
   panel.hidden = !panel.hidden;
   $('donateBtn').setAttribute('aria-expanded', String(!panel.hidden));
 }
+
+// ============================================================
+// BIND EVENTS
+// ============================================================
 function bind(){
-  $('searchBtn').onclick = () => { page = 0; applySearch(); };
-  $('query').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); page = 0; applySearch(); } });
-  $('languageFilter').onchange = () => { page = 0; applySearch(); };
-  $('list').onclick = e => { const card = e.target.closest('.card'); if (card) selectEntry(card.dataset.id); };
-  $('firstBtn').onclick = () => { page = 0; renderList(); };
-  $('prevBtn').onclick = () => { page = Math.max(0, page - 1); renderList(); };
-  $('nextBtn').onclick = () => { page += 1; renderList(); };
-  $('lastBtn').onclick = () => { page = Math.max(0, Math.ceil(visibleEntries.length / PAGE_SIZE) - 1); renderList(); };
-  $('newBtn').onclick = newEntry;
+  $('searchBtn').onclick       = () => { page=0; applySearch(); };
+  $('query').addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); page=0; applySearch(); } });
+  $('languageFilter').onchange = () => { page=0; applySearch(); };
+  $('list').onclick = e => { const card=e.target.closest('.card'); if(card) selectEntry(card.dataset.id); };
+  $('firstBtn').onclick = () => { page=0; renderList(); };
+  $('prevBtn').onclick  = () => { page=Math.max(0,page-1); renderList(); };
+  $('nextBtn').onclick  = () => { page+=1; renderList(); };
+  $('lastBtn').onclick  = () => { page=Math.max(0,Math.ceil(visibleEntries.length/PAGE_SIZE)-1); renderList(); };
+  $('newBtn').onclick     = newEntry;
   $('entryForm').onsubmit = saveEntry;
-  $('deleteBtn').onclick = deleteEntry;
-  $('dedupeBtn').onclick = removeDuplicates;
-  $('exportBtn').onclick = exportJson;
+  $('deleteBtn').onclick  = deleteEntry;
+  $('dedupeBtn').onclick  = removeDuplicates;
+  $('exportBtn').onclick  = exportJson;
+
+  $('driveBtn').onclick = async () => {
+    try {
+      await gSignIn();
+      toast('Đang tải dữ liệu từ Drive...');
+      const driveEntries = await loadFromDrive();
+      customEntries = driveEntries.map(cleanEntry);
+      applySearch();
+      toast(`Đã kết nối Drive, tải ${customEntries.length} mục ✓`);
+    } catch(err){
+      toast('Kết nối thất bại: ' + err.message);
+    }
+  };
+
   function openImportPicker(){
-    const btn = $('importBtn');
+    const btn   = $('importBtn');
     const input = $('importFile');
     if (!input) return toast('Không tìm thấy ô chọn file JSON.');
-    if (btn && btn.getAttribute('aria-disabled') === 'true') return;
+    if (btn && btn.getAttribute('aria-disabled')==='true') return;
     input.click();
   }
-
   $('importBtn').addEventListener('click', openImportPicker);
   $('importBtn').addEventListener('keydown', e => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      openImportPicker();
-    }
+    if (e.key==='Enter'||e.key===' '){ e.preventDefault(); openImportPicker(); }
   });
-
-  $('importFile').addEventListener('click', e => { e.target.value = ''; });
+  $('importFile').addEventListener('click', e => { e.target.value=''; });
   $('importFile').addEventListener('change', e => {
     const files = [...e.target.files];
     if (!files.length) return toast('Bạn chưa chọn file JSON.');
     importJson(files);
   });
-  $('imageFile').onchange = e => setImage(e.target.files[0]);
-  $('dropZone').ondragover = e => { e.preventDefault(); $('dropZone').classList.add('drag'); };
-  $('dropZone').ondragleave = () => $('dropZone').classList.remove('drag');
-  $('dropZone').ondrop = e => { e.preventDefault(); $('dropZone').classList.remove('drag'); setImage(e.dataTransfer.files[0]); };
-  $('speakHeadBtn').onclick = () => speak($('headword').value, $('sourceLanguage').value);
+
+  $('imageFile').onchange    = e => setImage(e.target.files[0]);
+  $('dropZone').ondragover   = e => { e.preventDefault(); $('dropZone').classList.add('drag'); };
+  $('dropZone').ondragleave  = ()  => $('dropZone').classList.remove('drag');
+  $('dropZone').ondrop       = e => { e.preventDefault(); $('dropZone').classList.remove('drag'); setImage(e.dataTransfer.files[0]); };
+  $('speakHeadBtn').onclick  = () => speak($('headword').value, $('sourceLanguage').value);
   $('speakTransBtn').onclick = () => speak($('translation').value, $('targetLanguage').value);
-  $('donateBtn').onclick = toggleDonate;
-  $('momoBtn').onclick = () => { $('qrBox').hidden = !$('qrBox').hidden; };
+  $('donateBtn').onclick     = toggleDonate;
+  $('momoBtn').onclick       = () => { $('qrBox').hidden = !$('qrBox').hidden; };
 
   const symbols = 'ā á ǎ à ē é ě è ī í ǐ ì ō ó ǒ ò ū ú ǔ ù ǖ ǘ ǚ ǜ ə ɜ ʌ æ ɑ ɒ ɔ ʊ ɪ ʃ ʒ θ ð ŋ ɲ ˈ ˌ ː ˧ ˨ ˩ ˦ ˥'.split(' ');
-  $('symbolsPanel').innerHTML = symbols.map(s => `<button type="button">${s}</button>`).join('');
+  $('symbolsPanel').innerHTML = symbols.map(s=>`<button type="button">${s}</button>`).join('');
   $('pronunciation').addEventListener('focus', showSymbolsPanel);
   $('pronunciation').addEventListener('click', showSymbolsPanel);
-  $('symbolsBtn').onclick = () => { $('symbolsPanel').hidden ? showSymbolsPanel() : hideSymbolsPanel(); };
-  $('symbolsPanel').onclick = e => {
-    if (e.target.tagName === 'BUTTON') insertAtCursor($('pronunciation'), e.target.textContent);
-  };
+  $('symbolsBtn').onclick   = () => { $('symbolsPanel').hidden ? showSymbolsPanel() : hideSymbolsPanel(); };
+  $('symbolsPanel').onclick = e => { if(e.target.tagName==='BUTTON') insertAtCursor($('pronunciation'), e.target.textContent); };
   document.addEventListener('click', e => {
-    if (!e.target.closest('#symbolsPanel') && !e.target.closest('#symbolsBtn') && e.target !== $('pronunciation')) hideSymbolsPanel();
-    if (!e.target.closest('#donatePanel') && e.target !== $('donateBtn')) {
+    if (!e.target.closest('#symbolsPanel') && !e.target.closest('#symbolsBtn') && e.target!==$('pronunciation')) hideSymbolsPanel();
+    if (!e.target.closest('#donatePanel') && e.target!==$('donateBtn')){
       $('donatePanel').hidden = true;
-      $('donateBtn').setAttribute('aria-expanded', 'false');
+      $('donateBtn').setAttribute('aria-expanded','false');
     }
   });
-  window.addEventListener('resize', () => { if (!$('symbolsPanel').hidden) showSymbolsPanel(); });
+  window.addEventListener('resize', () => { if(!$('symbolsPanel').hidden) showSymbolsPanel(); });
 }
+
+// ============================================================
+// KHỞI ĐỘNG
+// ============================================================
 async function init(){
   fillLanguages();
   bind();
-  loadLocal();
+
   const loaded = [];
-  try {
-    loaded.push(...await loadDictionaryFile(DATA_URL));
-  } catch (error) {
-    toast('Không tải được dữ liệu gốc. Vẫn có thể nhập JSON hoặc thêm từ mới.');
-  }
-  try {
-    loaded.push(...await loadDictionaryFile(PERSONAL_DATA_URL));
-  } catch (error) {
-    // File này có thể trống hoặc chưa có trên bản cũ, nên không cần báo lỗi.
-  }
+  try { loaded.push(...await loadDictionaryFile(DATA_URL)); }
+  catch { toast('Không tải được dữ liệu gốc. Vẫn có thể nhập JSON hoặc thêm từ mới.'); }
+
   baseEntries = dedupeEntries(loaded);
-  if (baseEntries.length) toast(`Đã tải ${baseEntries.length} mục từ.`);
+
+  // Thử tải Drive tự động (chỉ thành công nếu user đã từng đăng nhập trong phiên)
+  try {
+    const driveEntries = await loadFromDrive();
+    if (driveEntries.length){
+      customEntries = driveEntries.map(cleanEntry);
+      updateDriveStatus(true);
+      toast(`Đã tải ${customEntries.length} mục cá nhân từ Drive ✓`);
+    } else {
+      toast('Bấm "Kết nối Drive" để đồng bộ dữ liệu cá nhân.');
+    }
+  } catch {
+    toast('Bấm "Kết nối Drive" để đồng bộ dữ liệu cá nhân.');
+  }
+
   applySearch();
 }
-init();
+
+window.addEventListener('load', () => {
+  if (window.google && window.google.accounts) { init(); }
+  else { setTimeout(init, 1500); }
+});
