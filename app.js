@@ -3,7 +3,7 @@
 // ============================================================
 const GDRIVE_CLIENT_ID = '806114616037-tk1ohpbv8vhh0ftsk1igei9u7np5jk5u.apps.googleusercontent.com';
 const GDRIVE_FILE_ID   = '14wpgbHB22SVlie6_VNvE5yc5b1BQIu4n';
-const GDRIVE_SCOPE     = 'https://www.googleapis.com/auth/drive.file';
+const GDRIVE_SCOPE     = 'https://www.googleapis.com/auth/drive';
 
 // ============================================================
 // HẰNG SỐ & BIẾN TOÀN CỤC
