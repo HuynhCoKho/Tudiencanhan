@@ -345,12 +345,7 @@ function bind(){
     if ($('importBtn').getAttribute('aria-disabled') === 'true') return;
     $('importFile').click();
   });
-  $('importBtn').addEventListener('keydown', e => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      $('importFile').click();
-    }
-  });
+
   $('importFile').onchange = e => importJson([...e.target.files]);
   $('imageFile').onchange = e => setImage(e.target.files[0]);
   $('dropZone').ondragover = e => { e.preventDefault(); $('dropZone').classList.add('drag'); };
