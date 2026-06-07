@@ -4,7 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Từ điển cá nhân</title>
-  <link rel="stylesheet" href="styles.css?v=20260607-importfix12">
+  <link rel="stylesheet" href="styles.css?v=20260607-drive">
+  <!-- Google Identity Services (bắt buộc cho Drive API) -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <main class="app">
@@ -15,6 +17,7 @@
       </div>
       <div class="top-actions">
         <div class="top-buttons">
+          <button id="driveBtn" type="button">Kết nối Drive</button>
           <button id="dedupeBtn" type="button">Xóa trùng</button>
           <button id="exportBtn" type="button">Xuất JSON</button>
           <button id="importBtn" class="button file-btn" type="button">Nhập JSON</button>
@@ -30,7 +33,7 @@
               <button id="momoBtn" type="button">MoMo QR</button>
             </div>
             <div id="qrBox" class="qr-box" hidden>
-              <img src="assets/momo-qr.svg?v=20260607-importfix12" alt="MoMo QR Huỳnh Cỏ Khô">
+              <img src="assets/momo-qr.svg?v=20260607-drive" alt="MoMo QR Huỳnh Cỏ Khô">
             </div>
           </div>
         </div>
@@ -92,6 +95,6 @@
 
   <div id="symbolsPanel" class="symbols" hidden></div>
   <div id="toast" class="toast" role="status" hidden></div>
-  <script src="app.js?v=20260607-importfix12"></script>
+  <script src="app.js?v=20260607-drive"></script>
 </body>
 </html>
