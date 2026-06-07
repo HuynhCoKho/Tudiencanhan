@@ -611,29 +611,31 @@ function bind(){
 // ============================================================
 // KHỞI ĐỘNG
 // ============================================================
+const PERSONAL_DATA_URL = './data/personal_dictionary_data.json';
+
 async function init(){
   fillLanguages();
   bind();
 
   const loaded = [];
+
+  // Tải từ điển gốc (công khai, không cần đăng nhập)
   try { loaded.push(...await loadDictionaryFile(DATA_URL)); }
   catch { toast('Không tải được dữ liệu gốc. Vẫn có thể nhập JSON hoặc thêm từ mới.'); }
 
-  baseEntries = dedupeEntries(loaded);
-
-  // Thử tải Drive tự động (chỉ thành công nếu user đã từng đăng nhập trong phiên)
+  // Tải từ điển cá nhân từ GitHub (công khai, ai cũng đọc được)
   try {
-    const driveEntries = await loadFromDrive();
-    if (driveEntries.length){
-      customEntries = driveEntries.map(cleanEntry);
-      updateDriveStatus(true);
-      toast(`Đã tải ${customEntries.length} mục cá nhân từ Drive ✓`);
-    } else {
-      toast('Bấm "Kết nối Drive" để đồng bộ dữ liệu cá nhân.');
-    }
+    const personal = await loadDictionaryFile(PERSONAL_DATA_URL);
+    if (personal.length) loaded.push(...personal);
   } catch {
-    toast('Bấm "Kết nối Drive" để đồng bộ dữ liệu cá nhân.');
+    // File chua co hoac trong, bo qua
   }
+
+  baseEntries = dedupeEntries(loaded);
+  if (baseEntries.length) toast('Da tai ' + baseEntries.length + ' muc tu.');
+
+  // KHONG tu dong goi Drive khi khoi dong
+  // Drive chi dung khi admin bam "Ket noi Drive"
 
   applySearch();
 }
