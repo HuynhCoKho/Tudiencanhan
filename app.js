@@ -37,13 +37,13 @@ function normalizeLanguage(value) {
 function searchText(value) { return String(value || '').toLocaleLowerCase('vi').trim(); }
 function makeId() { return 'u_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8); }
 function escapeHtml(value) { return String(value || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-function toast(message) {
+function toast(message, ms = 3500) {
   const el = $('toast');
   if (!el) return;
   el.textContent = message || '';
   el.hidden = !message;
   clearTimeout(toast.timer);
-  if (message) toast.timer = setTimeout(() => { el.hidden = true; }, 3500);
+  if (message && ms) toast.timer = setTimeout(() => { el.hidden = true; }, ms);
 }
 
 function cleanEntry(entry = {}) {
@@ -62,23 +62,11 @@ function cleanEntry(entry = {}) {
     meaning: String(entry.meaning || entry.note || entry.notes || '').trim(),
     example: String(entry.example || entry.examples || '').trim(),
     image: String(entry.image || entry.imageData || '').trim(),
-    sourceName: String(entry.sourceName || entry.source || '').trim()
+    sourceName: String(entry.sourceName || '').trim()
   };
 }
-
-function loadLocal() {
-  try { customEntries = JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]').map(cleanEntry); } catch { customEntries = []; }
-  try { deletedIds = new Set(JSON.parse(localStorage.getItem(DELETED_KEY) || '[]')); } catch { deletedIds = new Set(); }
-}
-function saveLocal() {
-  localStorage.setItem(CUSTOM_KEY, JSON.stringify(customEntries));
-  localStorage.setItem(DELETED_KEY, JSON.stringify([...deletedIds]));
-}
-function allEntries() {
-  const map = new Map();
-  baseEntries.forEach(e => { if (!deletedIds.has(e.id)) map.set(e.id, e); });
-  customEntries.forEach(e => { if (!deletedIds.has(e.id)) map.set(e.id, e); });
-  return [...map.values()];
+function contentKey(entry) {
+  return [searchText(entry.headword), searchText(entry.translation), normalizeLanguage(entry.sourceLanguage), normalizeLanguage(entry.targetLanguage)].join('|');
 }
 function summary(entry) { return entry.translation || entry.meaning || entry.example || entry.category || ''; }
 function sortEntries(items) { return items.sort((a, b) => collator.compare(a.headword || '', b.headword || '')); }
@@ -92,6 +80,25 @@ function rank(entry, query) {
   if (head.includes(query)) return 4;
   if (trans.includes(query)) return 5;
   return 99;
+}
+
+function loadLocal() {
+  try { customEntries = JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]').map(cleanEntry); } catch { customEntries = []; }
+  try { deletedIds = new Set(JSON.parse(localStorage.getItem(DELETED_KEY) || '[]')); } catch { deletedIds = new Set(); }
+}
+function saveLocal() {
+  try {
+    localStorage.setItem(CUSTOM_KEY, JSON.stringify(customEntries));
+    localStorage.setItem(DELETED_KEY, JSON.stringify([...deletedIds]));
+  } catch (error) {
+    throw new Error('Bộ nhớ trình duyệt không đủ để lưu dữ liệu này. Hãy xuất JSON để lưu trữ, rồi xóa bớt ảnh lớn hoặc mục không cần thiết.');
+  }
+}
+function allEntries() {
+  const map = new Map();
+  baseEntries.forEach(e => { if (!deletedIds.has(e.id)) map.set(e.id, e); });
+  customEntries.forEach(e => { if (!deletedIds.has(e.id)) map.set(e.id, e); });
+  return [...map.values()];
 }
 
 function fillLanguages() {
@@ -132,18 +139,17 @@ function renderList() {
   const totalPages = Math.max(1, Math.ceil(visibleEntries.length / PAGE_SIZE));
   page = Math.max(0, Math.min(page, totalPages - 1));
   count.textContent = `${visibleEntries.length} mục từ`;
-  const start = page * PAGE_SIZE;
-  const rows = visibleEntries.slice(start, start + PAGE_SIZE);
+  const rows = visibleEntries.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
   list.innerHTML = rows.length ? rows.map(e => `
     <article class="card${e.id === selectedId ? ' active' : ''}" data-id="${escapeHtml(e.id)}">
       ${e.image ? `<img class="thumb" src="${escapeHtml(e.image)}" alt="">` : '<div class="thumb empty">Ảnh</div>'}
       <div><div class="term">${escapeHtml(e.headword)}</div><div class="translation">${escapeHtml(summary(e))}</div></div>
     </article>`).join('') : '<p class="empty-note">Chưa có mục phù hợp.</p>';
-  const first = $('firstBtn'), prev = $('prevBtn'), next = $('nextBtn'), last = $('lastBtn');
-  if (first) first.disabled = page <= 0;
-  if (prev) prev.disabled = page <= 0;
-  if (next) next.disabled = page >= totalPages - 1;
-  if (last) last.disabled = page >= totalPages - 1;
+  const total = Math.max(1, Math.ceil(visibleEntries.length / PAGE_SIZE));
+  if ($('firstBtn')) $('firstBtn').disabled = page <= 0;
+  if ($('prevBtn')) $('prevBtn').disabled = page <= 0;
+  if ($('nextBtn')) $('nextBtn').disabled = page >= total - 1;
+  if ($('lastBtn')) $('lastBtn').disabled = page >= total - 1;
 }
 
 function selectEntry(id, rerender = true) {
@@ -193,41 +199,53 @@ function formEntry() {
 }
 function saveEntry(event) {
   event.preventDefault();
-  const entry = formEntry();
-  if (!entry.headword && !entry.translation) return toast('Bạn cần nhập từ gốc hoặc bản dịch.');
-  const index = customEntries.findIndex(e => e.id === entry.id);
-  if (index >= 0) customEntries[index] = entry;
-  else customEntries.unshift(entry);
-  deletedIds.delete(entry.id);
-  saveLocal();
-  selectedId = entry.id;
-  applySearch();
-  selectEntry(entry.id);
-  toast('Đã lưu mục từ.');
+  try {
+    const entry = formEntry();
+    if (!entry.headword && !entry.translation) return toast('Bạn cần nhập từ gốc hoặc bản dịch.');
+    const index = customEntries.findIndex(e => e.id === entry.id);
+    if (index >= 0) customEntries[index] = entry;
+    else customEntries.unshift(entry);
+    deletedIds.delete(entry.id);
+    saveLocal();
+    selectedId = entry.id;
+    applySearch();
+    selectEntry(entry.id);
+    toast('Đã lưu mục từ.');
+  } catch (error) {
+    toast('Không lưu được mục từ: ' + (error && error.message ? error.message : error), 6000);
+  }
 }
 function deleteEntry() {
   const id = $('id')?.value;
   if (!id) return;
   if (!confirm('Xóa mục từ này?')) return;
-  deletedIds.add(id);
-  customEntries = customEntries.filter(e => e.id !== id);
-  saveLocal();
-  selectedId = '';
-  applySearch();
-  toast('Đã xóa mục từ.');
+  try {
+    deletedIds.add(id);
+    customEntries = customEntries.filter(e => e.id !== id);
+    saveLocal();
+    selectedId = '';
+    applySearch();
+    toast('Đã xóa mục từ.');
+  } catch (error) {
+    toast('Không xóa được mục từ: ' + (error && error.message ? error.message : error), 6000);
+  }
 }
 function removeDuplicates() {
-  const seen = new Set();
-  let removed = 0;
-  allEntries().forEach(e => {
-    const key = [searchText(e.headword), searchText(e.translation), e.sourceLanguage, e.targetLanguage].join('|');
-    if (seen.has(key)) { deletedIds.add(e.id); removed += 1; }
-    else seen.add(key);
-  });
-  customEntries = customEntries.filter(e => !deletedIds.has(e.id));
-  saveLocal();
-  applySearch();
-  toast(`Đã xóa ${removed} mục trùng.`);
+  try {
+    const seen = new Set();
+    let removed = 0;
+    allEntries().forEach(e => {
+      const key = contentKey(e);
+      if (seen.has(key)) { deletedIds.add(e.id); removed += 1; }
+      else seen.add(key);
+    });
+    customEntries = customEntries.filter(e => !deletedIds.has(e.id));
+    saveLocal();
+    applySearch();
+    toast(`Đã xóa ${removed} mục trùng.`);
+  } catch (error) {
+    toast('Không xóa trùng được: ' + (error && error.message ? error.message : error), 6000);
+  }
 }
 function exportJson() {
   const blob = new Blob([JSON.stringify({ entries: allEntries(), exportedAt: new Date().toISOString() }, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -239,15 +257,36 @@ function exportJson() {
   URL.revokeObjectURL(url);
 }
 async function importJson(files) {
-  let added = 0;
-  for (const file of files) {
-    const data = JSON.parse(await file.text());
-    const entries = Array.isArray(data) ? data : data.entries || [];
-    entries.map(cleanEntry).forEach(e => { customEntries.unshift({ ...e, id: makeId(), sourceName: file.name }); added += 1; });
+  if (!files || !files.length) return toast('Bạn chưa chọn file JSON.');
+  const importBtn = $('importBtn');
+  const input = $('importFile');
+  if (importBtn) importBtn.disabled = true;
+  let added = 0, updated = 0, skipped = 0;
+  try {
+    toast(`Đang nhập ${files.length} file JSON...`, 0);
+    for (const file of files) {
+      const data = JSON.parse(await file.text());
+      const entries = Array.isArray(data) ? data : (Array.isArray(data.entries) ? data.entries : []);
+      if (!entries.length) { skipped += 1; continue; }
+      for (const raw of entries) {
+        const entry = cleanEntry({ ...raw, sourceName: raw.sourceName || file.name });
+        if (!entry.headword && !entry.translation) { skipped += 1; continue; }
+        const key = contentKey(entry);
+        const idx = customEntries.findIndex(e => e.id === entry.id || contentKey(e) === key);
+        if (idx >= 0) { customEntries[idx] = { ...customEntries[idx], ...entry }; updated += 1; }
+        else { customEntries.unshift(entry); added += 1; }
+        deletedIds.delete(entry.id);
+      }
+    }
+    saveLocal();
+    applySearch();
+    toast(`Đã nhập ${added} mục mới, cập nhật ${updated} mục${skipped ? `, bỏ qua ${skipped} mục không hợp lệ` : ''}.`, 7000);
+  } catch (error) {
+    toast('Không nhập được file: ' + (error && error.message ? error.message : error), 7000);
+  } finally {
+    if (importBtn) importBtn.disabled = false;
+    if (input) input.value = '';
   }
-  saveLocal();
-  applySearch();
-  toast(`Đã nhập ${added} mục từ.`);
 }
 
 function renderImagePreview() {
@@ -339,7 +378,8 @@ function bind() {
   on('deleteBtn', 'click', deleteEntry);
   on('dedupeBtn', 'click', removeDuplicates);
   on('exportBtn', 'click', exportJson);
-  on('importFile', 'change', e => importJson([...e.target.files]).catch(err => toast('Không nhập được file: ' + err.message)));
+  on('importBtn', 'click', () => $('importFile')?.click());
+  on('importFile', 'change', e => importJson([...e.target.files]));
   on('imageFile', 'change', e => setImage(e.target.files[0]).catch(err => toast('Không đọc được ảnh: ' + err.message)));
   on('speakHeadBtn', 'click', () => speak($('headword')?.value, $('sourceLanguage')?.value));
   on('speakTransBtn', 'click', () => speak($('translation')?.value, $('targetLanguage')?.value));
