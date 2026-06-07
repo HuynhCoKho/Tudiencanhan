@@ -234,11 +234,19 @@ async function importJson(files){
     importBtn.style.pointerEvents = 'none';
   }
   let added = 0, updated = 0;
+  // Sao lưu để rollback nếu lưu thất bại (ví dụ: localStorage đầy)
+  const backupCustom = [...customEntries];
+  const backupDeleted = new Set(deletedIds);
   try {
     toast(`Đang nhập ${files.length} file JSON...`);
     for (const file of files) {
       const text = await file.text();
-      const data = JSON.parse(text);
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        throw new Error(`${file.name}: file JSON bị lỗi định dạng, không đọc được.`);
+      }
       const rows = Array.isArray(data) ? data : (data.entries || []);
       if (!Array.isArray(rows)) throw new Error(`${file.name}: định dạng JSON không có mảng entries.`);
       for (const raw of rows) {
@@ -254,11 +262,14 @@ async function importJson(files){
         deletedIds.delete(entry.id);
       }
     }
-    saveLocal();
+    saveLocal(); // Nếu lỗi ở đây (localStorage đầy), catch sẽ rollback
     page = 0;
     applySearch();
     toast(`Đã nhập ${added} mục mới, cập nhật ${updated} mục.`);
   } catch (error) {
+    // Rollback về trạng thái trước khi import để tránh dữ liệu nửa vời
+    customEntries = backupCustom;
+    deletedIds = backupDeleted;
     toast('Không nhập được file: ' + (error && error.message ? error.message : error));
   } finally {
     if (importBtn) {
