@@ -753,12 +753,31 @@ function compressImage(file){
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      const maxW=420, maxH=280, ratio=Math.min(maxW/img.width, maxH/img.height, 1);
+      // Giới hạn kích thước tối đa — đủ lớn để giữ nét chữ nhỏ
+      const maxW = 1200, maxH = 900;
+      const ratio = Math.min(maxW / img.width, maxH / img.height, 1);
+      const w = Math.max(1, Math.round(img.width  * ratio));
+      const h = Math.max(1, Math.round(img.height * ratio));
+
       const canvas = document.createElement('canvas');
-      canvas.width  = Math.max(1, Math.round(img.width*ratio));
-      canvas.height = Math.max(1, Math.round(img.height*ratio));
-      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/jpeg', 0.78));
+      canvas.width  = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      // Bật image smoothing chất lượng cao khi thu nhỏ
+      ctx.imageSmoothingEnabled  = true;
+      ctx.imageSmoothingQuality  = 'high';
+      ctx.drawImage(img, 0, 0, w, h);
+
+      // Thử PNG trước (giữ nét tốt hơn cho ảnh chữ/sơ đồ)
+      // Nếu PNG > 600 KB thì fallback sang JPEG chất lượng cao
+      const pngData = canvas.toDataURL('image/png');
+      const pngBytes = Math.round((pngData.length * 3) / 4); // ước tính byte
+      if (pngBytes <= 600 * 1024) {
+        resolve(pngData);
+      } else {
+        // JPEG chất lượng cao — đủ để giữ nét, vẫn nhỏ hơn PNG
+        resolve(canvas.toDataURL('image/jpeg', 0.92));
+      }
     };
     img.onerror = reject;
     img.src = URL.createObjectURL(file);
@@ -780,7 +799,8 @@ async function setImage(file){
   if (!file) return;
   currentImage = await compressImage(file);
   showImage(currentImage);
-  toast('Ảnh đã được nén trước khi lưu.');
+  const kb = Math.round(currentImage.length * 3 / 4 / 1024);
+  toast(`Ảnh đã lưu (${kb} KB).`);
 }
 
 // ============================================================
