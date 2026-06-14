@@ -4,26 +4,310 @@
 const GDRIVE_CLIENT_ID = '806114616037-tk1ohpbv8vhh0ftsk1igei9u7np5jk5u.apps.googleusercontent.com';
 const GDRIVE_FILE_NAME = 'personal_dictionary_data.json';
 const GDRIVE_SCOPE     = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive';
-let gDriveFileId = null; // sẽ tự tìm hoặc tạo khi cần
+let gDriveFileId = null;
 
 // ============================================================
 // HẰNG SỐ & BIẾN TOÀN CỤC
 // ============================================================
-const DATA_URL    = './data/dictionary.json';
-const PAGE_SIZE   = 40;
-const LANGS       = ['Tất cả','Anh','Việt','Trung','Thái','Nhật','Hàn','Pháp','Đức','Nga','Khác'];
+const DATA_URL  = './data/dictionary.json';
+const PAGE_SIZE = 40;
+
+// Danh sách ngôn ngữ thế giới — hiển thị theo tên tiếng Việt, sắp xếp A-Z
+const LANGS = [
+  'Tất cả',
+  'Abkhaz','Afar','Afrikaans','Akan','Albanian','Amharic','Arabic','Aragonese','Armenian','Assamese',
+  'Avaric','Avestan','Aymara','Azerbaijani',
+  'Bambara','Bashkir','Basque','Belarusian','Bengali','Bihari','Bislama','Bosnian','Breton','Bulgarian','Burmese',
+  'Catalan','Chamorro','Chechen','Chichewa','Chinese (Simplified)','Chinese (Traditional)','Chuvash','Cornish','Corsican','Cree','Croatian','Czech',
+  'Danish','Divehi','Dutch','Dzongkha',
+  'English','Esperanto','Estonian','Ewe',
+  'Faroese','Fijian','Finnish','French','Fula',
+  'Galician','Georgian','German','Greek','Guaraní','Gujarati',
+  'Haitian Creole','Hausa','Hebrew','Herero','Hindi','Hiri Motu','Hungarian',
+  'Interlingua','Indonesian','Interlingue','Irish','Igbo','Inupiaq','Ido','Icelandic','Italian','Inuktitut',
+  'Japanese','Javanese',
+  'Kalaallisut','Kannada','Kanuri','Kashmiri','Kazakh','Khmer','Kikuyu','Kinyarwanda','Kirghiz','Komi','Kongo','Korean','Kurdish','Kwanyama',
+  'Lao','Latin','Latvian','Limburgish','Lingala','Lithuanian','Luba-Katanga','Luxembourgish',
+  'Macedonian','Malagasy','Malay','Malayalam','Maltese','Māori','Marathi','Marshallese','Mongolian',
+  'Nauru','Navajo','Norwegian Bokmål','North Ndebele','Nepali','Ndonga','Norwegian Nynorsk','Norwegian','Nuosu','South Ndebele','Occitan','Ojibwe','Old Church Slavonic','Oromo','Oriya','Ossetian',
+  'Panjabi','Pāli','Persian','Polish','Pashto','Portuguese',
+  'Quechua',
+  'Romansh','Kirundi','Romanian','Russian',
+  'Sanskrit','Sardinian','Sindhi','Northern Sami','Samoan','Sango','Serbian','Scottish Gaelic','Shona','Sinhala','Slovak','Slovene','Somali','South Ndebele','Southern Sotho','Spanish','Sundanese','Swahili','Swati','Swedish',
+  'Tamil','Telugu','Tajik','Thai','Tigrinya','Tibetan','Turkmen','Tagalog','Tswana','Tonga','Turkish','Tsonga',
+  'Tatar','Twi','Tahitian',
+  'Uighur','Ukrainian','Urdu','Uzbek',
+  'Venda','Vietnamese',
+  'Volapük',
+  'Walloon','Welsh','Wolof',
+  'Western Frisian',
+  'Xhosa',
+  'Yiddish','Yoruba',
+  'Zhuang','Zulu',
+  'Khác'
+];
+
+// Bảng chuẩn hóa: key (đã bỏ dấu, viết thường) → tên hiển thị trong LANGS
 const LANGUAGE_LABELS = {
-  all:'Tất cả','tat ca':'Tất cả',
-  anh:'Anh', english:'Anh', en:'Anh',
-  viet:'Việt', vi:'Việt', vietnamese:'Việt',
-  trung:'Trung', chinese:'Trung', zh:'Trung',
-  thai:'Thái', th:'Thái',
-  nhat:'Nhật', japanese:'Nhật', ja:'Nhật',
-  han:'Hàn', korean:'Hàn', ko:'Hàn',
-  phap:'Pháp', french:'Pháp', fr:'Pháp',
-  duc:'Đức', german:'Đức', de:'Đức',
-  nga:'Nga', russian:'Nga', ru:'Nga',
-  khac:'Khác', other:'Khác'
+  // Meta
+  'all':'Tất cả','tat ca':'Tất cả','khac':'Khác','other':'Khác',
+
+  // A
+  'abkhaz':'Abkhaz','ab':'Abkhaz',
+  'afar':'Afar','aa':'Afar',
+  'afrikaans':'Afrikaans','af':'Afrikaans',
+  'akan':'Akan','ak':'Akan',
+  'albanian':'Albanian','sq':'Albanian',
+  'amharic':'Amharic','am':'Amharic',
+  'arabic':'Arabic','ar':'Arabic',
+  'aragonese':'Aragonese','an':'Aragonese',
+  'armenian':'Armenian','hy':'Armenian',
+  'assamese':'Assamese','as':'Assamese',
+  'avaric':'Avaric','av':'Avaric',
+  'avestan':'Avestan','ae':'Avestan',
+  'aymara':'Aymara','ay':'Aymara',
+  'azerbaijani':'Azerbaijani','az':'Azerbaijani',
+
+  // B
+  'bambara':'Bambara','bm':'Bambara',
+  'bashkir':'Bashkir','ba':'Bashkir',
+  'basque':'Basque','eu':'Basque',
+  'belarusian':'Belarusian','be':'Belarusian',
+  'bengali':'Bengali','bn':'Bengali',
+  'bihari':'Bihari','bh':'Bihari',
+  'bislama':'Bislama','bi':'Bislama',
+  'bosnian':'Bosnian','bs':'Bosnian',
+  'breton':'Breton','br':'Breton',
+  'bulgarian':'Bulgarian','bg':'Bulgarian',
+  'burmese':'Burmese','my':'Burmese',
+
+  // C
+  'catalan':'Catalan','ca':'Catalan',
+  'chamorro':'Chamorro','ch':'Chamorro',
+  'chechen':'Chechen','ce':'Chechen',
+  'chichewa':'Chichewa','ny':'Chichewa',
+  'chinese (simplified)':'Chinese (Simplified)','zh':'Chinese (Simplified)','zh-hans':'Chinese (Simplified)',
+  'trung':'Chinese (Simplified)','chinese':'Chinese (Simplified)',
+  'chinese (traditional)':'Chinese (Traditional)','zh-hant':'Chinese (Traditional)',
+  'chuvash':'Chuvash','cv':'Chuvash',
+  'cornish':'Cornish','kw':'Cornish',
+  'corsican':'Corsican','co':'Corsican',
+  'cree':'Cree','cr':'Cree',
+  'croatian':'Croatian','hr':'Croatian',
+  'czech':'Czech','cs':'Czech',
+
+  // D
+  'danish':'Danish','da':'Danish',
+  'divehi':'Divehi','dv':'Divehi',
+  'dutch':'Dutch','nl':'Dutch',
+  'dzongkha':'Dzongkha','dz':'Dzongkha',
+
+  // E
+  'english':'English','en':'English','anh':'English',
+  'esperanto':'Esperanto','eo':'Esperanto',
+  'estonian':'Estonian','et':'Estonian',
+  'ewe':'Ewe','ee':'Ewe',
+
+  // F
+  'faroese':'Faroese','fo':'Faroese',
+  'fijian':'Fijian','fj':'Fijian',
+  'finnish':'Finnish','fi':'Finnish',
+  'french':'French','fr':'French','phap':'French',
+  'fula':'Fula','ff':'Fula',
+
+  // G
+  'galician':'Galician','gl':'Galician',
+  'georgian':'Georgian','ka':'Georgian',
+  'german':'German','de':'German','duc':'German',
+  'greek':'Greek','el':'Greek',
+  'guarani':'Guaraní','gn':'Guaraní',
+  'gujarati':'Gujarati','gu':'Gujarati',
+
+  // H
+  'haitian creole':'Haitian Creole','ht':'Haitian Creole',
+  'hausa':'Hausa','ha':'Hausa',
+  'hebrew':'Hebrew','he':'Hebrew',
+  'herero':'Herero','hz':'Herero',
+  'hindi':'Hindi','hi':'Hindi',
+  'hiri motu':'Hiri Motu','ho':'Hiri Motu',
+  'hungarian':'Hungarian','hu':'Hungarian',
+
+  // I
+  'interlingua':'Interlingua','ia':'Interlingua',
+  'indonesian':'Indonesian','id':'Indonesian',
+  'interlingue':'Interlingue','ie':'Interlingue',
+  'irish':'Irish','ga':'Irish',
+  'igbo':'Igbo','ig':'Igbo',
+  'inupiaq':'Inupiaq','ik':'Inupiaq',
+  'ido':'Ido','io':'Ido',
+  'icelandic':'Icelandic','is':'Icelandic',
+  'italian':'Italian','it':'Italian',
+  'inuktitut':'Inuktitut','iu':'Inuktitut',
+
+  // J
+  'japanese':'Japanese','ja':'Japanese','nhat':'Japanese',
+  'javanese':'Javanese','jv':'Javanese',
+
+  // K
+  'kalaallisut':'Kalaallisut','kl':'Kalaallisut',
+  'kannada':'Kannada','kn':'Kannada',
+  'kanuri':'Kanuri','kr':'Kanuri',
+  'kashmiri':'Kashmiri','ks':'Kashmiri',
+  'kazakh':'Kazakh','kk':'Kazakh',
+  'khmer':'Khmer','km':'Khmer',
+  'kikuyu':'Kikuyu','ki':'Kikuyu',
+  'kinyarwanda':'Kinyarwanda','rw':'Kinyarwanda',
+  'kirghiz':'Kirghiz','ky':'Kirghiz',
+  'komi':'Komi','kv':'Komi',
+  'kongo':'Kongo','kg':'Kongo',
+  'korean':'Korean','ko':'Korean','han':'Korean',
+  'kurdish':'Kurdish','ku':'Kurdish',
+  'kwanyama':'Kwanyama','kj':'Kwanyama',
+
+  // L
+  'lao':'Lao','lo':'Lao',
+  'latin':'Latin','la':'Latin',
+  'latvian':'Latvian','lv':'Latvian',
+  'limburgish':'Limburgish','li':'Limburgish',
+  'lingala':'Lingala','ln':'Lingala',
+  'lithuanian':'Lithuanian','lt':'Lithuanian',
+  'luba-katanga':'Luba-Katanga','lu':'Luba-Katanga',
+  'luxembourgish':'Luxembourgish','lb':'Luxembourgish',
+
+  // M
+  'macedonian':'Macedonian','mk':'Macedonian',
+  'malagasy':'Malagasy','mg':'Malagasy',
+  'malay':'Malay','ms':'Malay',
+  'malayalam':'Malayalam','ml':'Malayalam',
+  'maltese':'Maltese','mt':'Maltese',
+  'maori':'Māori','mi':'Māori',
+  'marathi':'Marathi','mr':'Marathi',
+  'marshallese':'Marshallese','mh':'Marshallese',
+  'mongolian':'Mongolian','mn':'Mongolian',
+
+  // N
+  'nauru':'Nauru','na':'Nauru',
+  'navajo':'Navajo','nv':'Navajo',
+  'norwegian bokmal':'Norwegian Bokmål','nb':'Norwegian Bokmål',
+  'north ndebele':'North Ndebele','nd':'North Ndebele',
+  'nepali':'Nepali','ne':'Nepali',
+  'ndonga':'Ndonga','ng':'Ndonga',
+  'norwegian nynorsk':'Norwegian Nynorsk','nn':'Norwegian Nynorsk',
+  'norwegian':'Norwegian','no':'Norwegian',
+  'nuosu':'Nuosu','ii':'Nuosu',
+  'south ndebele':'South Ndebele','nr':'South Ndebele',
+
+  // O
+  'occitan':'Occitan','oc':'Occitan',
+  'ojibwe':'Ojibwe','oj':'Ojibwe',
+  'old church slavonic':'Old Church Slavonic','cu':'Old Church Slavonic',
+  'oromo':'Oromo','om':'Oromo',
+  'oriya':'Oriya','or':'Oriya',
+  'ossetian':'Ossetian','os':'Ossetian',
+
+  // P
+  'panjabi':'Panjabi','pa':'Panjabi',
+  'pali':'Pāli','pi':'Pāli',
+  'persian':'Persian','fa':'Persian',
+  'polish':'Polish','pl':'Polish',
+  'pashto':'Pashto','ps':'Pashto',
+  'portuguese':'Portuguese','pt':'Portuguese',
+
+  // Q
+  'quechua':'Quechua','qu':'Quechua',
+
+  // R
+  'romansh':'Romansh','rm':'Romansh',
+  'kirundi':'Kirundi','rn':'Kirundi',
+  'romanian':'Romanian','ro':'Romanian',
+  'russian':'Russian','ru':'Russian','nga':'Russian',
+
+  // S
+  'sanskrit':'Sanskrit','sa':'Sanskrit',
+  'sardinian':'Sardinian','sc':'Sardinian',
+  'sindhi':'Sindhi','sd':'Sindhi',
+  'northern sami':'Northern Sami','se':'Northern Sami',
+  'samoan':'Samoan','sm':'Samoan',
+  'sango':'Sango','sg':'Sango',
+  'serbian':'Serbian','sr':'Serbian',
+  'scottish gaelic':'Scottish Gaelic','gd':'Scottish Gaelic',
+  'shona':'Shona','sn':'Shona',
+  'sinhala':'Sinhala','si':'Sinhala',
+  'slovak':'Slovak','sk':'Slovak',
+  'slovene':'Slovene','sl':'Slovene',
+  'somali':'Somali','so':'Somali',
+  'southern sotho':'Southern Sotho','st':'Southern Sotho',
+  'spanish':'Spanish','es':'Spanish',
+  'sundanese':'Sundanese','su':'Sundanese',
+  'swahili':'Swahili','sw':'Swahili',
+  'swati':'Swati','ss':'Swati',
+  'swedish':'Swedish','sv':'Swedish',
+
+  // T
+  'tamil':'Tamil','ta':'Tamil',
+  'telugu':'Telugu','te':'Telugu',
+  'tajik':'Tajik','tg':'Tajik',
+  'thai':'Thai','th':'Thai',
+  'tigrinya':'Tigrinya','ti':'Tigrinya',
+  'tibetan':'Tibetan','bo':'Tibetan',
+  'turkmen':'Turkmen','tk':'Turkmen',
+  'tagalog':'Tagalog','tl':'Tagalog',
+  'tswana':'Tswana','tn':'Tswana',
+  'tonga':'Tonga','to':'Tonga',
+  'turkish':'Turkish','tr':'Turkish',
+  'tsonga':'Tsonga','ts':'Tsonga',
+  'tatar':'Tatar','tt':'Tatar',
+  'twi':'Twi','tw':'Twi',
+  'tahitian':'Tahitian','ty':'Tahitian',
+
+  // U
+  'uighur':'Uighur','ug':'Uighur',
+  'ukrainian':'Ukrainian','uk':'Ukrainian',
+  'urdu':'Urdu','ur':'Urdu',
+  'uzbek':'Uzbek','uz':'Uzbek',
+
+  // V
+  'venda':'Venda','ve':'Venda',
+  'vietnamese':'Vietnamese','vi':'Vietnamese','viet':'Vietnamese',
+  'volapuk':'Volapük','vo':'Volapük',
+
+  // W
+  'walloon':'Walloon','wa':'Walloon',
+  'welsh':'Welsh','cy':'Welsh',
+  'wolof':'Wolof','wo':'Wolof',
+  'western frisian':'Western Frisian','fy':'Western Frisian',
+
+  // X
+  'xhosa':'Xhosa','xh':'Xhosa',
+
+  // Y
+  'yiddish':'Yiddish','yi':'Yiddish',
+  'yoruba':'Yoruba','yo':'Yoruba',
+
+  // Z
+  'zhuang':'Zhuang','za':'Zhuang',
+  'zulu':'Zulu','zu':'Zulu',
+};
+
+// Bảng mã BCP-47 cho Web Speech API
+const LANG_BCP47 = {
+  'English':'en-US','Vietnamese':'vi-VN','Chinese (Simplified)':'zh-CN','Chinese (Traditional)':'zh-TW',
+  'Thai':'th-TH','Japanese':'ja-JP','Korean':'ko-KR','French':'fr-FR','German':'de-DE','Russian':'ru-RU',
+  'Spanish':'es-ES','Portuguese':'pt-PT','Italian':'it-IT','Dutch':'nl-NL','Arabic':'ar-SA',
+  'Hindi':'hi-IN','Bengali':'bn-BD','Turkish':'tr-TR','Polish':'pl-PL','Ukrainian':'uk-UA',
+  'Romanian':'ro-RO','Czech':'cs-CZ','Slovak':'sk-SK','Hungarian':'hu-HU','Finnish':'fi-FI',
+  'Swedish':'sv-SE','Norwegian':'no-NO','Danish':'da-DK','Greek':'el-GR','Bulgarian':'bg-BG',
+  'Croatian':'hr-HR','Serbian':'sr-RS','Slovenian':'sl-SI','Lithuanian':'lt-LT','Latvian':'lv-LV',
+  'Estonian':'et-EE','Hebrew':'he-IL','Persian':'fa-IR','Urdu':'ur-PK','Malay':'ms-MY',
+  'Indonesian':'id-ID','Filipino':'fil-PH','Tagalog':'tl-PH','Swahili':'sw-KE','Afrikaans':'af-ZA',
+  'Catalan':'ca-ES','Basque':'eu-ES','Galician':'gl-ES','Welsh':'cy-GB','Irish':'ga-IE',
+  'Icelandic':'is-IS','Maltese':'mt-MT','Albanian':'sq-AL','Macedonian':'mk-MK','Belarusian':'be-BY',
+  'Armenian':'hy-AM','Georgian':'ka-GE','Azerbaijani':'az-AZ','Kazakh':'kk-KZ','Uzbek':'uz-UZ',
+  'Mongolian':'mn-MN','Nepali':'ne-NP','Sinhala':'si-LK','Khmer':'km-KH','Lao':'lo-LA',
+  'Burmese':'my-MM','Tamil':'ta-IN','Telugu':'te-IN','Kannada':'kn-IN','Malayalam':'ml-IN',
+  'Gujarati':'gu-IN','Panjabi':'pa-IN','Marathi':'mr-IN','Assamese':'as-IN',
+  'Amharic':'am-ET','Somali':'so-SO','Hausa':'ha-NG','Yoruba':'yo-NG','Igbo':'ig-NG',
+  'Zulu':'zu-ZA','Xhosa':'xh-ZA',
 };
 
 const $        = id => document.getElementById(id);
@@ -37,7 +321,6 @@ let page           = 0;
 let selectedId     = '';
 let currentImage   = '';
 
-// Google Drive token
 let gAccessToken = null;
 
 // ============================================================
@@ -45,6 +328,9 @@ let gAccessToken = null;
 // ============================================================
 function normalizeLanguage(value){
   const raw = String(value || '').trim();
+  // Thử tra trực tiếp (giữ nguyên dấu) trước
+  if (LANGUAGE_LABELS[raw]) return LANGUAGE_LABELS[raw];
+  // Bỏ dấu + viết thường
   const key = raw.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   return LANGUAGE_LABELS[key] || raw || 'Khác';
 }
@@ -60,7 +346,6 @@ function toast(message){
 // ============================================================
 // GOOGLE DRIVE AUTH & API
 // ============================================================
-
 function gSignIn(){
   return new Promise((resolve, reject) => {
     if (!window.google || !window.google.accounts) {
@@ -85,7 +370,6 @@ async function ensureToken(){
   return await gSignIn();
 }
 
-/** Tìm file theo tên trong Drive, trả về fileId hoặc null */
 async function gDriveFindFile(token){
   const q = encodeURIComponent(`name='${GDRIVE_FILE_NAME}' and trashed=false`);
   const res = await fetch(
@@ -97,7 +381,6 @@ async function gDriveFindFile(token){
   return (data.files && data.files.length > 0) ? data.files[0].id : null;
 }
 
-/** Tạo file mới trên Drive, trả về fileId */
 async function gDriveCreateFile(token, content){
   const metadata = { name: GDRIVE_FILE_NAME, mimeType: 'application/json' };
   const boundary = 'dicboundary';
@@ -128,7 +411,6 @@ async function gDriveCreateFile(token, content){
   return data.id;
 }
 
-/** Ghi đè nội dung vào file đã có */
 async function gDriveUpdateFile(token, fileId, content){
   const res = await fetch(
     `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
@@ -142,11 +424,9 @@ async function gDriveUpdateFile(token, fileId, content){
   return await res.json();
 }
 
-/** Ghi dữ liệu: tự tìm file, nếu chưa có thì tạo mới */
 async function gDriveWriteFile(data){
   const token   = await ensureToken();
   const content = JSON.stringify(data, null, 2);
-  // Tìm fileId nếu chưa có
   if (!gDriveFileId) gDriveFileId = await gDriveFindFile(token);
   if (gDriveFileId){
     await gDriveUpdateFile(token, gDriveFileId, content);
@@ -184,9 +464,8 @@ async function saveToDrive(){
 async function loadFromDrive(){
   try {
     const token = await ensureToken();
-    // Tìm file theo tên
     if (!gDriveFileId) gDriveFileId = await gDriveFindFile(token);
-    if (!gDriveFileId) return []; // chưa có file, lần đầu dùng
+    if (!gDriveFileId) return [];
     const res = await fetch(
       `https://www.googleapis.com/drive/v3/files/${gDriveFileId}?alt=media`,
       { headers: { Authorization: 'Bearer ' + token } }
@@ -217,8 +496,8 @@ function cleanEntry(entry){
     id            : entry.id || makeId(),
     headword      : entry.headword || entry.foreignTerm || entry.vietnamese || '',
     translation   : entry.translation || entry.meaning || '',
-    sourceLanguage: normalizeLanguage(entry.sourceLanguage || entry.language || 'Việt'),
-    targetLanguage: normalizeLanguage(entry.targetLanguage || (entry.language === 'Viet' ? 'Anh' : 'Việt')),
+    sourceLanguage: normalizeLanguage(entry.sourceLanguage || entry.language || 'Vietnamese'),
+    targetLanguage: normalizeLanguage(entry.targetLanguage || (entry.language === 'Viet' ? 'English' : 'Vietnamese')),
     pronunciation : entry.pronunciation || '',
     category      : entry.category || '',
     meaning       : entry.meaning || '',
@@ -305,8 +584,8 @@ function fillLanguages(){
       .filter(l => id==='languageFilter' || l!=='Tất cả')
       .map(l => `<option value="${l}">${l}</option>`).join('');
   });
-  $('sourceLanguage').value = 'Việt';
-  $('targetLanguage').value = 'Anh';
+  $('sourceLanguage').value = 'Vietnamese';
+  $('targetLanguage').value = 'English';
 }
 function selectEntry(id){
   const entry = allEntries().find(e => e.id===id);
@@ -332,8 +611,8 @@ function newEntry(){
   $('formTitle').textContent = 'Thêm mục từ';
   $('entryForm').reset();
   $('id').value             = '';
-  $('sourceLanguage').value = 'Việt';
-  $('targetLanguage').value = 'Anh';
+  $('sourceLanguage').value = 'Vietnamese';
+  $('targetLanguage').value = 'English';
   showImage('');
 }
 function formEntry(){
@@ -438,7 +717,6 @@ async function importJson(files){
       catch { throw new Error(`${file.name}: file JSON bị lỗi định dạng.`); }
       const rows = Array.isArray(data) ? data : (data.entries || []);
       if (!Array.isArray(rows)) throw new Error(`${file.name}: không tìm thấy mảng entries.`);
-      // Xử lý từng batch 100 mục để không treo UI
       const BATCH = 100;
       for (let i = 0; i < rows.length; i += BATCH){
         const batch = rows.slice(i, i + BATCH);
@@ -449,7 +727,6 @@ async function importJson(files){
           else        { customEntries.unshift(entry); added++; }
           deletedIds.delete(entry.id);
         }
-        // Nhả UI thread sau mỗi batch
         await new Promise(r => setTimeout(r, 0));
         toast(`Đang nhập... ${Math.min(i + BATCH, rows.length)}/${rows.length} mục`);
       }
@@ -514,8 +791,7 @@ function speak(text, lang){
   if (!value) return toast('Chưa có nội dung để phát âm.');
   if (!('speechSynthesis' in window)) return toast('Trình duyệt chưa hỗ trợ phát âm.');
   const utter = new SpeechSynthesisUtterance(value);
-  const map   = {'Việt':'vi-VN','Anh':'en-US','Thái':'th-TH','Trung':'zh-CN','Nhật':'ja-JP','Hàn':'ko-KR','Pháp':'fr-FR','Đức':'de-DE','Nga':'ru-RU'};
-  utter.lang  = map[lang] || 'vi-VN';
+  utter.lang  = LANG_BCP47[lang] || 'vi-VN';
   window.speechSynthesis.cancel();
   window.speechSynthesis.speak(utter);
 }
@@ -643,23 +919,18 @@ async function init(){
 
   const loaded = [];
 
-  // Tải từ điển gốc (công khai, không cần đăng nhập)
   try { loaded.push(...await loadDictionaryFile(DATA_URL)); }
   catch { toast('Không tải được dữ liệu gốc. Vẫn có thể nhập JSON hoặc thêm từ mới.'); }
 
-  // Tải từ điển cá nhân từ GitHub (công khai, ai cũng đọc được)
   try {
     const personal = await loadDictionaryFile(PERSONAL_DATA_URL);
     if (personal.length) loaded.push(...personal);
   } catch {
-    // File chua co hoac trong, bo qua
+    // File chưa có hoặc trống, bỏ qua
   }
 
   baseEntries = dedupeEntries(loaded);
-  if (baseEntries.length) toast('Da tai ' + baseEntries.length + ' muc tu.');
-
-  // KHONG tu dong goi Drive khi khoi dong
-  // Drive chi dung khi admin bam "Ket noi Drive"
+  if (baseEntries.length) toast('Đã tải ' + baseEntries.length + ' mục từ.');
 
   applySearch();
 }
