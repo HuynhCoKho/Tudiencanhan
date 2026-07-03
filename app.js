@@ -322,6 +322,10 @@ let selectedId     = '';
 let currentImage   = '';
 
 let gAccessToken = null;
+let entriesCache = null;
+let entriesById = null;
+let sortedCache = null;
+const searchCache = new WeakMap();
 
 // ============================================================
 // TIỆN ÍCH CHUNG
@@ -482,7 +486,7 @@ async function loadFromDrive(){
 }
 
 async function loadDictionaryFile(url){
-  const response = await fetch(url, { cache: 'no-store' });
+  const response = await fetch(url);
   if (!response.ok) throw new Error(response.status + ' ' + response.statusText);
   const data = await response.json();
   return (Array.isArray(data) ? data : data.entries || []).map(cleanEntry);
@@ -507,10 +511,23 @@ function cleanEntry(entry){
   };
 }
 function allEntries(){
+  if (entriesCache) return entriesCache;
   const map = new Map();
   baseEntries.forEach(e   => { if (!deletedIds.has(e.id)) map.set(e.id, e); });
   customEntries.forEach(e => { if (!deletedIds.has(e.id)) map.set(e.id, e); });
-  return [...map.values()];
+  entriesCache = [...map.values()];
+  entriesById = new Map(entriesCache.map(e => [e.id, e]));
+  entriesCache.forEach(entrySearchParts);
+  return entriesCache;
+}
+function invalidateEntryCache(){
+  entriesCache = null;
+  entriesById = null;
+  sortedCache = null;
+}
+function getEntryById(id){
+  allEntries();
+  return entriesById ? entriesById.get(id) : null;
 }
 function contentKey(entry){
   return [
@@ -534,8 +551,30 @@ function dedupeEntries(entries){
 }
 function entrySummary(entry){ return entry.translation || entry.meaning || entry.example || ''; }
 function sortEntries(items){ return items.sort((a,b) => collator.compare(a.headword||'', b.headword||'')); }
+function sortedEntries(){
+  if (!sortedCache) sortedCache = sortEntries([...allEntries()]);
+  return sortedCache;
+}
+function entrySearchParts(entry){
+  if (!entry || typeof entry !== 'object') return { headword:'', translation:'' };
+  const cached = searchCache.get(entry);
+  if (cached) return cached;
+  const parts = {
+    headword: searchText(entry.headword),
+    translation: searchText(entry.translation)
+  };
+  searchCache.set(entry, parts);
+  return parts;
+}
+function entryInfoScore(entry){
+  const fields = ['headword','translation','pronunciation','category','meaning','example','image','sourceName','sourceLanguage','targetLanguage'];
+  return fields.reduce((score, field) => {
+    const value = String(entry && entry[field] || '').trim();
+    return value ? score + 10 + Math.min(value.length, 1000) : score;
+  }, 0);
+}
 function rank(entry, q){
-  const h = searchText(entry.headword), t = searchText(entry.translation);
+  const { headword:h, translation:t } = entrySearchParts(entry);
   if (h===q) return 0; if (t===q) return 1;
   if (h.startsWith(q)) return 2; if (t.startsWith(q)) return 3;
   if (h.includes(q))   return 4; if (t.includes(q))   return 5;
@@ -548,19 +587,24 @@ function rank(entry, q){
 function applySearch(){
   const q    = searchText($('query').value);
   const lang = $('languageFilter').value;
-  let items  = allEntries();
+  let items  = q ? allEntries() : sortedEntries();
   if (lang && lang !== 'Tất cả') items = items.filter(e => e.sourceLanguage===lang || e.targetLanguage===lang);
   if (q){
     items = items
-      .filter(e => searchText(e.headword).includes(q) || searchText(e.translation).includes(q))
+      .filter(e => {
+        const parts = entrySearchParts(e);
+        return parts.headword.includes(q) || parts.translation.includes(q);
+      })
       .sort((a,b) => rank(a,q)-rank(b,q) || collator.compare(a.headword||'',b.headword||''));
-  } else {
+  } else if (lang && lang !== 'Tất cả') {
     items = sortEntries(items);
   }
   visibleEntries = items;
   page = Math.min(page, Math.max(0, Math.ceil(items.length/PAGE_SIZE)-1));
+  const firstVisible = visibleEntries[page*PAGE_SIZE];
+  selectedId = firstVisible ? firstVisible.id : '';
   renderList();
-  if (visibleEntries.length) selectEntry(visibleEntries[page*PAGE_SIZE].id);
+  if (firstVisible) selectEntry(firstVisible.id, false);
   else newEntry();
 }
 function renderList(){
@@ -587,8 +631,8 @@ function fillLanguages(){
   $('sourceLanguage').value = 'Vietnamese';
   $('targetLanguage').value = 'English';
 }
-function selectEntry(id){
-  const entry = allEntries().find(e => e.id===id);
+function selectEntry(id, shouldRender = true){
+  const entry = getEntryById(id);
   if (!entry) return;
   selectedId = id;
   $('formTitle').textContent    = 'Sửa mục từ';
@@ -603,7 +647,7 @@ function selectEntry(id){
   $('example').value            = entry.example || '';
   currentImage = entry.image || '';
   showImage(currentImage);
-  renderList();
+  if (shouldRender) renderList();
 }
 function newEntry(){
   selectedId   = '';
@@ -642,7 +686,9 @@ async function saveEntry(event){
   if (idx>=0) customEntries[idx] = entry;
   else customEntries.unshift(entry);
   deletedIds.delete(entry.id);
+  invalidateEntryCache();
   selectedId = entry.id;
+  page = 0;
   applySearch();
   toast('Đang lưu lên Google Drive...');
   try {
@@ -659,6 +705,7 @@ async function deleteEntry(){
   deletedIds.add(id);
   customEntries = customEntries.filter(e => e.id!==id);
   selectedId = '';
+  invalidateEntryCache();
   applySearch();
   toast('Đang lưu lên Google Drive...');
   try {
@@ -669,18 +716,30 @@ async function deleteEntry(){
   }
 }
 async function removeDuplicates(){
-  const seen = new Map(), remove = [];
+  const bestByHeadword = new Map(), remove = new Set();
   allEntries().forEach(e => {
-    const key = `${searchText(e.headword)}|${searchText(e.translation)}|${e.sourceLanguage}|${e.targetLanguage}`;
-    if (seen.has(key)) remove.push(e.id);
-    else seen.set(key, e.id);
+    const key = searchText(e.headword);
+    if (!key) return;
+    const current = bestByHeadword.get(key);
+    if (!current) {
+      bestByHeadword.set(key, e);
+      return;
+    }
+    const keep = entryInfoScore(e) > entryInfoScore(current) ? e : current;
+    const drop = keep === e ? current : e;
+    bestByHeadword.set(key, keep);
+    remove.add(drop.id);
   });
+  if (!remove.size) return toast('Không tìm thấy mục trùng theo từ/cụm từ gốc.');
   remove.forEach(id => deletedIds.add(id));
+  customEntries = customEntries.filter(e => !remove.has(e.id));
+  if (remove.has(selectedId)) selectedId = '';
+  invalidateEntryCache();
   applySearch();
   toast('Đang lưu lên Google Drive...');
   try {
     await saveToDrive();
-    toast(`Đã xóa ${remove.length} mục trùng ✓`);
+    toast(`Đã xóa ${remove.size} mục trùng theo từ/cụm từ gốc ✓`);
   } catch(err){
     toast('Lưu Drive thất bại: ' + err.message);
   }
@@ -709,6 +768,8 @@ async function importJson(files){
   const backupCustom  = [...customEntries];
   const backupDeleted = new Set(deletedIds);
   try {
+    const customById = new Map(customEntries.map((e, i) => [e.id, i]));
+    const customByContent = new Map(customEntries.map((e, i) => [contentKey(e), i]));
     toast(`Đang nhập ${files.length} file JSON...`);
     for (const file of files){
       const text = await file.text();
@@ -722,9 +783,20 @@ async function importJson(files){
         const batch = rows.slice(i, i + BATCH);
         for (const raw of batch){
           const entry = cleanEntry({ ...raw, sourceName: raw.sourceName || file.name });
-          const idx   = customEntries.findIndex(e => e.id===entry.id || contentKey(e)===contentKey(entry));
-          if (idx>=0){ customEntries[idx] = { ...customEntries[idx], ...entry }; updated++; }
-          else        { customEntries.unshift(entry); added++; }
+          const key = contentKey(entry);
+          const idx = customById.has(entry.id) ? customById.get(entry.id) : customByContent.get(key);
+          if (idx !== undefined){
+            customEntries[idx] = { ...customEntries[idx], ...entry };
+            customById.set(customEntries[idx].id, idx);
+            customByContent.set(contentKey(customEntries[idx]), idx);
+            updated++;
+          } else {
+            customEntries.push(entry);
+            const newIdx = customEntries.length - 1;
+            customById.set(entry.id, newIdx);
+            customByContent.set(key, newIdx);
+            added++;
+          }
           deletedIds.delete(entry.id);
         }
         await new Promise(r => setTimeout(r, 0));
@@ -734,11 +806,13 @@ async function importJson(files){
     toast('Đang lưu lên Google Drive...');
     await saveToDrive();
     page = 0;
+    invalidateEntryCache();
     applySearch();
     toast(`Đã nhập ${added} mục mới, cập nhật ${updated} mục. Đã lưu Drive ✓`);
   } catch(err){
     customEntries = backupCustom;
     deletedIds    = backupDeleted;
+    invalidateEntryCache();
     toast('Không nhập được: ' + (err && err.message ? err.message : err));
   } finally {
     if (importBtn){ importBtn.removeAttribute('aria-disabled'); importBtn.style.pointerEvents=''; }
@@ -857,8 +931,10 @@ function bind(){
   $('searchBtn').onclick       = () => { page=0; applySearch(); };
   $('query').addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); page=0; applySearch(); } });
   $('query').addEventListener('input', () => {
-    clearTimeout($('query')._t);
-    $('query')._t = setTimeout(() => { page=0; applySearch(); }, 300);
+    if (!$('query').value.trim()) {
+      page = 0;
+      applySearch();
+    }
   });
   $('languageFilter').onchange = () => { page=0; applySearch(); };
   $('list').onclick = e => { const card=e.target.closest('.card'); if(card) selectEntry(card.dataset.id); };
@@ -878,6 +954,7 @@ function bind(){
       toast('Đang tải dữ liệu từ Drive...');
       const driveEntries = await loadFromDrive();
       customEntries = driveEntries.map(cleanEntry);
+      invalidateEntryCache();
       applySearch();
       toast(`Đã kết nối Drive, tải ${customEntries.length} mục ✓`);
     } catch(err){
@@ -950,6 +1027,7 @@ async function init(){
   }
 
   baseEntries = dedupeEntries(loaded);
+  invalidateEntryCache();
   if (baseEntries.length) toast('Đã tải ' + baseEntries.length + ' mục từ.');
 
   applySearch();
