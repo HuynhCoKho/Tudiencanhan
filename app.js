@@ -760,18 +760,27 @@ async function removeDuplicates(){
 }
 
 async function deleteAllEntries(){
-  const all = allEntries();
-  if (!all.length) return toast('Không có mục từ nào để xóa.');
-  if (!confirm(`Xóa TẤT CẢ ${all.length} mục từ trong từ điển? Không thể hoàn tác.`)) return;
-  all.forEach(e => deletedIds.add(e.id));
-  customEntries = [];
-  selectedId = '';
+  const q      = searchText($('query').value);
+  const lang   = $('languageFilter').value;
+  const filtered = (q || (lang && lang !== 'Tất cả'));
+  const target = filtered ? visibleEntries : allEntries();
+  if (!target.length) return toast('Không có mục từ nào để xóa.');
+
+  const scopeMsg = filtered
+    ? `Xóa ${target.length} mục từ đang hiển thị theo bộ lọc/tìm kiếm hiện tại (Ngôn ngữ: ${lang && lang!=='Tất cả' ? lang : 'Tất cả'}${q ? `, từ khóa: "${$('query').value.trim()}"` : ''})? Không thể hoàn tác.`
+    : `Xóa TẤT CẢ ${target.length} mục từ trong toàn bộ từ điển (không có bộ lọc nào đang áp dụng)? Không thể hoàn tác.`;
+  if (!confirm(scopeMsg)) return;
+
+  target.forEach(e => deletedIds.add(e.id));
+  const removeIds = new Set(target.map(e => e.id));
+  customEntries = customEntries.filter(e => !removeIds.has(e.id));
+  if (removeIds.has(selectedId)) selectedId = '';
   invalidateEntryCache();
   applySearch();
   toast('Đang lưu lên Google Drive...');
   try {
     await saveToDrive();
-    toast(`Đã xóa hết ${all.length} mục từ ✓`);
+    toast(`Đã xóa ${target.length} mục từ ✓`);
   } catch(err){
     toast('Lưu Drive thất bại: ' + err.message);
   }
