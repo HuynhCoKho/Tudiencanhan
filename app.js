@@ -576,6 +576,7 @@ function entryInfoScore(entry){
 // Trả về mốc thời gian (ms) mục từ được thêm, dựa trên id dạng u_<base36 timestamp>_<random>.
 // Mục từ gốc (không có id kiểu này, vd. từ điển có sẵn) coi như cũ nhất (0).
 function entryTimestamp(entry){
+  if (entry && typeof entry.addedAt === 'number' && !isNaN(entry.addedAt)) return entry.addedAt;
   const id = String(entry && entry.id || '');
   if (id.startsWith('u_')){
     const t = parseInt(id.split('_')[1], 36);
@@ -693,8 +694,8 @@ async function saveEntry(event){
   const entry = formEntry();
   if (!entry.headword) return toast('Bạn cần nhập từ / cụm từ gốc.');
   const idx = customEntries.findIndex(e => e.id===entry.id);
-  if (idx>=0) customEntries[idx] = entry;
-  else customEntries.unshift(entry);
+  if (idx>=0) { entry.addedAt = customEntries[idx].addedAt || Date.now(); customEntries[idx] = entry; }
+  else { entry.addedAt = Date.now(); customEntries.unshift(entry); }
   deletedIds.delete(entry.id);
   invalidateEntryCache();
   selectedId = entry.id;
@@ -827,11 +828,12 @@ async function importJson(files){
           const key = contentKey(entry);
           const idx = customById.has(entry.id) ? customById.get(entry.id) : customByContent.get(key);
           if (idx !== undefined){
-            customEntries[idx] = { ...customEntries[idx], ...entry };
+            customEntries[idx] = { ...customEntries[idx], ...entry, addedAt: customEntries[idx].addedAt || Date.now() };
             customById.set(customEntries[idx].id, idx);
             customByContent.set(contentKey(customEntries[idx]), idx);
             updated++;
           } else {
+            entry.addedAt = Date.now();
             customEntries.push(entry);
             const newIdx = customEntries.length - 1;
             customById.set(entry.id, newIdx);
