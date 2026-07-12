@@ -573,6 +573,16 @@ function entryInfoScore(entry){
     return value ? score + 10 + Math.min(value.length, 1000) : score;
   }, 0);
 }
+// Trả về mốc thời gian (ms) mục từ được thêm, dựa trên id dạng u_<base36 timestamp>_<random>.
+// Mục từ gốc (không có id kiểu này, vd. từ điển có sẵn) coi như cũ nhất (0).
+function entryTimestamp(entry){
+  const id = String(entry && entry.id || '');
+  if (id.startsWith('u_')){
+    const t = parseInt(id.split('_')[1], 36);
+    if (!isNaN(t)) return t;
+  }
+  return 0;
+}
 function rank(entry, q){
   const { headword:h, translation:t } = entrySearchParts(entry);
   if (h===q) return 0; if (t===q) return 1;
@@ -725,7 +735,11 @@ async function removeDuplicates(){
       bestByHeadword.set(key, e);
       return;
     }
-    const keep = entryInfoScore(e) > entryInfoScore(current) ? e : current;
+    const keep = (() => {
+      const tE = entryTimestamp(e), tC = entryTimestamp(current);
+      if (tE !== tC) return tE > tC ? e : current;               // ưu tiên mục nhập vào sau (mới hơn)
+      return entryInfoScore(e) > entryInfoScore(current) ? e : current; // bằng thời gian: giữ mục đầy đủ thông tin hơn
+    })();
     const drop = keep === e ? current : e;
     bestByHeadword.set(key, keep);
     remove.add(drop.id);
@@ -740,6 +754,24 @@ async function removeDuplicates(){
   try {
     await saveToDrive();
     toast(`Đã xóa ${remove.size} mục trùng theo từ/cụm từ gốc ✓`);
+  } catch(err){
+    toast('Lưu Drive thất bại: ' + err.message);
+  }
+}
+
+async function deleteAllEntries(){
+  const all = allEntries();
+  if (!all.length) return toast('Không có mục từ nào để xóa.');
+  if (!confirm(`Xóa TẤT CẢ ${all.length} mục từ trong từ điển? Không thể hoàn tác.`)) return;
+  all.forEach(e => deletedIds.add(e.id));
+  customEntries = [];
+  selectedId = '';
+  invalidateEntryCache();
+  applySearch();
+  toast('Đang lưu lên Google Drive...');
+  try {
+    await saveToDrive();
+    toast(`Đã xóa hết ${all.length} mục từ ✓`);
   } catch(err){
     toast('Lưu Drive thất bại: ' + err.message);
   }
@@ -945,6 +977,7 @@ function bind(){
   $('newBtn').onclick     = newEntry;
   $('entryForm').onsubmit = saveEntry;
   $('deleteBtn').onclick  = deleteEntry;
+  $('deleteAllBtn').onclick = deleteAllEntries;
   $('dedupeBtn').onclick  = removeDuplicates;
   $('exportBtn').onclick  = exportJson;
 
