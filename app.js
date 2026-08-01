@@ -598,8 +598,10 @@ function rank(entry, q){
 function applySearch(){
   const q    = searchText($('query').value);
   const lang = $('languageFilter').value;
+  const category = $('categoryFilter').value;
   let items  = q ? allEntries() : sortedEntries();
   if (lang && lang !== 'Tất cả') items = items.filter(e => e.sourceLanguage===lang || e.targetLanguage===lang);
+  if (category) items = items.filter(e => searchText(e.category) === searchText(category));
   if (q){
     items = items
       .filter(e => {
@@ -641,6 +643,21 @@ function fillLanguages(){
   });
   $('sourceLanguage').value = 'Vietnamese';
   $('targetLanguage').value = 'English';
+}
+function fillCategories(){
+  const select = $('categoryFilter');
+  const current = select.value;
+  const categories = new Map();
+  allEntries().forEach(entry => {
+    const category = String(entry.category || '').trim();
+    if (category) categories.set(searchText(category), category);
+  });
+  const values = Array.from(categories.values()).sort((a,b) => collator.compare(a,b));
+  select.innerHTML = '<option value="">Tất cả</option>' + values
+    .map(category => `<option value="${escapeAttr(category)}">${escapeHtml(category)}</option>`)
+    .join('');
+  const matched = values.find(category => searchText(category) === searchText(current));
+  select.value = matched || '';
 }
 function selectEntry(id, shouldRender = true){
   const entry = getEntryById(id);
@@ -700,6 +717,7 @@ async function saveEntry(event){
   invalidateEntryCache();
   selectedId = entry.id;
   page = 0;
+  fillCategories();
   applySearch();
   toast('Đang lưu lên Google Drive...');
   try {
@@ -717,6 +735,7 @@ async function deleteEntry(){
   customEntries = customEntries.filter(e => e.id!==id);
   selectedId = '';
   invalidateEntryCache();
+  fillCategories();
   applySearch();
   toast('Đang lưu lên Google Drive...');
   try {
@@ -750,6 +769,7 @@ async function removeDuplicates(){
   customEntries = customEntries.filter(e => !remove.has(e.id));
   if (remove.has(selectedId)) selectedId = '';
   invalidateEntryCache();
+  fillCategories();
   applySearch();
   toast('Đang lưu lên Google Drive...');
   try {
@@ -763,12 +783,13 @@ async function removeDuplicates(){
 async function deleteAllEntries(){
   const q      = searchText($('query').value);
   const lang   = $('languageFilter').value;
-  const filtered = (q || (lang && lang !== 'Tất cả'));
+  const category = $('categoryFilter').value;
+  const filtered = (q || (lang && lang !== 'Tất cả') || category);
   const target = filtered ? visibleEntries : allEntries();
   if (!target.length) return toast('Không có mục từ nào để xóa.');
 
   const scopeMsg = filtered
-    ? `Xóa ${target.length} mục từ đang hiển thị theo bộ lọc/tìm kiếm hiện tại (Ngôn ngữ: ${lang && lang!=='Tất cả' ? lang : 'Tất cả'}${q ? `, từ khóa: "${$('query').value.trim()}"` : ''})? Không thể hoàn tác.`
+    ? `Xóa ${target.length} mục từ đang hiển thị theo bộ lọc/tìm kiếm hiện tại (Ngôn ngữ: ${lang && lang!=='Tất cả' ? lang : 'Tất cả'}, Lĩnh vực: ${category || 'Tất cả'}${q ? `, từ khóa: "${$('query').value.trim()}"` : ''})? Không thể hoàn tác.`
     : `Xóa TẤT CẢ ${target.length} mục từ trong toàn bộ từ điển (không có bộ lọc nào đang áp dụng)? Không thể hoàn tác.`;
   if (!confirm(scopeMsg)) return;
 
@@ -777,6 +798,7 @@ async function deleteAllEntries(){
   customEntries = customEntries.filter(e => !removeIds.has(e.id));
   if (removeIds.has(selectedId)) selectedId = '';
   invalidateEntryCache();
+  fillCategories();
   applySearch();
   toast('Đang lưu lên Google Drive...');
   try {
@@ -850,6 +872,7 @@ async function importJson(files){
     await saveToDrive();
     page = 0;
     invalidateEntryCache();
+    fillCategories();
     applySearch();
     toast(`Đã nhập ${added} mục mới, cập nhật ${updated} mục. Đã lưu Drive ✓`);
   } catch(err){
@@ -980,6 +1003,7 @@ function bind(){
     }
   });
   $('languageFilter').onchange = () => { page=0; applySearch(); };
+  $('categoryFilter').onchange = () => { page=0; applySearch(); };
   $('list').onclick = e => { const card=e.target.closest('.card'); if(card) selectEntry(card.dataset.id); };
   $('firstBtn').onclick = () => { page=0; renderList(); };
   $('prevBtn').onclick  = () => { page=Math.max(0,page-1); renderList(); };
@@ -999,6 +1023,7 @@ function bind(){
       const driveEntries = await loadFromDrive();
       customEntries = driveEntries.map(cleanEntry);
       invalidateEntryCache();
+      fillCategories();
       applySearch();
       toast(`Đã kết nối Drive, tải ${customEntries.length} mục ✓`);
     } catch(err){
@@ -1072,6 +1097,7 @@ async function init(){
 
   baseEntries = dedupeEntries(loaded);
   invalidateEntryCache();
+  fillCategories();
   if (baseEntries.length) toast('Đã tải ' + baseEntries.length + ' mục từ.');
 
   applySearch();
