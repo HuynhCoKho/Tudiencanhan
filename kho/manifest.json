@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "builtAt": "2026-08-05T11:24:12.355Z",
+  "count": 16683,
+  "chunkSize": 2000,
+  "syncEndpoint": "",
+  "chunks": [
+    {
+      "file": "kho-001.json",
+      "hash": "cac1ba028476c21e",
+      "count": 2000
+    },
+    {
+      "file": "kho-002.json",
+      "hash": "17f48ce599a7c430",
+      "count": 2000
+    },
+    {
+      "file": "kho-003.json",
+      "hash": "8d79b471c4f0053c",
+      "count": 2000
+    },
+    {
+      "file": "kho-004.json",
+      "hash": "fad99d7cf9016c17",
+      "count": 2000
+    },
+    {
+      "file": "kho-005.json",
+      "hash": "cfb7582fe305318b",
+      "count": 2000
+    },
+    {
+      "file": "kho-006.json",
+      "hash": "7e93ad8528f20808",
+      "count": 2000
+    },
+    {
+      "file": "kho-007.json",
+      "hash": "b9fb1beb53e6543a",
+      "count": 2000
+    },
+    {
+      "file": "kho-008.json",
+      "hash": "2b77d95aec0a4dc1",
+      "count": 2000
+    },
+    {
+      "file": "kho-009.json",
+      "hash": "3b1ed3f4ac69e1e1",
+      "count": 683
+    }
+  ]
+}
