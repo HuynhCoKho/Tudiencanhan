@@ -3,7 +3,8 @@
   "builtAt": "2026-08-05T11:24:12.355Z",
   "count": 16683,
   "chunkSize": 2000,
-  "syncEndpoint": "",
+  "speechEndpoint": "https://script.google.com/macros/s/AKfycbxIsOzuwBKKHhA1MqV7sJSNh-NE8WkRGUBTf6XSBV7_XVi25aysXbNymbbC02KB0Hmh/exec",
+  "syncEndpoint": "https://script.google.com/macros/s/AKfycbxJPiUPaIUlaYNP6d4r5WOR67h4z7PKnuRFd_htJBfIrs74dhe1akC0zJRcwKiwPSKH/exec",
   "chunks": [
     {
       "file": "kho-001.json",
