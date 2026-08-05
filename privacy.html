@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Chính sách quyền riêng tư – Từ điển cá nhân</title>
+    <style>
+      :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+      body { margin: 0; background: #eef7f2; color: #14312c; }
+      main { max-width: 780px; margin: 0 auto; padding: 32px 20px 56px; line-height: 1.65; }
+      article { background: #fff; padding: clamp(22px, 5vw, 48px); border-radius: 24px; box-shadow: 0 16px 50px #0b4f4918; }
+      h1, h2 { line-height: 1.25; color: #0f766e; }
+      h1 { margin-top: 0; }
+      a { color: #0f766e; }
+      .meta { color: #62786f; }
+      @media (prefers-color-scheme: dark) {
+        body { background: #0d1f1c; color: #e4f3ee; }
+        article { background: #16302b; }
+        h1, h2, a { color: #6fd2c2; }
+        .meta { color: #a3bdb5; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <article>
+        <h1>Chính sách quyền riêng tư của Từ điển cá nhân</h1>
+        <p class="meta">Ngày có hiệu lực: 05/08/2026</p>
+
+        <p>Từ điển cá nhân là ứng dụng tra cứu và ghi chép từ vựng do Huỳnh Cỏ Khô phát triển. Chính sách này giải thích dữ liệu được xử lý khi bạn sử dụng ứng dụng.</p>
+
+        <h2>Dữ liệu được thu thập</h2>
+        <p>Ứng dụng <strong>không thu thập dữ liệu cá nhân</strong>. Không có tài khoản đăng nhập, không có mã quảng cáo hay công cụ thống kê của bên thứ ba. Ứng dụng không yêu cầu quyền truy cập vị trí, danh bạ, micrô hay camera.</p>
+        <p>Có đúng hai trường hợp ứng dụng gửi nội dung ra ngoài, cả hai đều do bạn chủ động bấm: nút “Nghe” khi máy thiếu giọng đọc, và nút “Gửi lên” trong phần Đồng bộ. Xem hai mục tương ứng bên dưới.</p>
+
+        <h2>Dữ liệu lưu trên máy của bạn</h2>
+        <p>Toàn bộ mục từ bạn thêm, sửa, nhập vào cùng ảnh minh họa bạn chọn được lưu ngay trong bộ nhớ của thiết bị (IndexedDB của ứng dụng). Dữ liệu này chỉ nằm trên máy bạn. Gỡ ứng dụng hoặc xóa dữ liệu ứng dụng trong phần Cài đặt sẽ xóa sạch những nội dung đó, nên hãy dùng nút “Xuất” để sao lưu ra file JSON trước khi làm việc này.</p>
+
+        <h2>Kho từ có sẵn</h2>
+        <p>Bản cài đặt đi kèm sẵn một kho từ do tác giả biên soạn. Kho này được chép vào máy trong lần mở đầu tiên và bạn toàn quyền sửa hoặc xóa.</p>
+
+        <h2>Quyền truy cập ảnh</h2>
+        <p>Khi bạn bấm chọn ảnh minh họa, hệ thống mở trình chọn ảnh của Android và chỉ đưa cho ứng dụng đúng tấm ảnh bạn chọn. Ảnh được thu nhỏ rồi lưu cùng mục từ trên máy, không được tải lên bất kỳ đâu.</p>
+
+        <h2>Phát âm</h2>
+        <p>Chức năng “Nghe” trước hết dùng bộ đọc văn bản (Text-to-Speech) cài sẵn trên thiết bị của bạn. Cách này chạy ngoại tuyến, không có gì rời khỏi máy.</p>
+        <p>Nếu máy không có giọng đọc cho thứ tiếng đó — thường gặp ở máy không cài dịch vụ Google — ứng dụng gửi <strong>đúng từ hoặc cụm từ bạn bấm nghe</strong> cùng mã ngôn ngữ tới một dịch vụ Google Apps Script do nhà phát triển quản lý, dịch vụ này nhờ Google Cloud Text-to-Speech đọc hộ rồi trả về file âm thanh. Chỉ nội dung cần đọc được gửi đi; không kèm mục từ nào khác, không kèm ghi chú, ảnh hay bất kỳ thông tin nhận dạng nào về bạn hoặc thiết bị. Bản ghi âm được giữ tạm trên máy chủ tối đa 6 tiếng để lần sau đọc lại cho nhanh, sau đó tự xóa.</p>
+        <p>Không muốn dùng chức năng này thì chỉ cần không bấm nút “Nghe”; mọi phần còn lại của ứng dụng vẫn chạy bình thường khi không có mạng.</p>
+
+        <h2>Đồng bộ từ riêng của bạn</h2>
+        <p>Chức năng này <strong>tắt sẵn</strong>. Chỉ khi bạn tự đặt một mã đồng bộ rồi bấm “Gửi lên”, ứng dụng mới chép những mục từ <strong>do chính bạn thêm hoặc sửa</strong> lên một dịch vụ Google Apps Script do nhà phát triển quản lý; dữ liệu được lưu thành một file riêng theo mã đó trong Google Drive của nhà phát triển. Kho từ có sẵn không được gửi đi. Bấm “Lấy về” thì ngược lại, tải kho ứng với mã đó về máy.</p>
+        <p><strong>Mã đồng bộ không phải mật khẩu.</strong> Bất kỳ ai gõ trúng mã của bạn cũng đọc và ghi đè được kho ứng với mã đó. Vì vậy đừng đặt mã dễ đoán, và đừng dùng chức năng này cho nội dung riêng tư hay nhạy cảm. Muốn xóa kho đã gửi lên, hãy liên hệ nhà phát triển kèm mã của bạn.</p>
+        <p>Không dùng chức năng này thì không có mục từ nào của bạn rời khỏi máy.</p>
+
+        <h2>Kết nối mạng</h2>
+        <p>Toàn bộ việc tra cứu, thêm, sửa, xóa mục từ đều chạy ngoại tuyến. Ứng dụng ra Internet trong ba trường hợp: phát âm khi máy thiếu giọng, đồng bộ khi bạn bấm, và kiểm tra xem kho từ có sẵn đã có bản bổ sung mới chưa. Việc kiểm tra kho chỉ tải về mục từ, không gửi gì của bạn đi.</p>
+
+        <h2>Trẻ em</h2>
+        <p>Ứng dụng không thu thập dữ liệu cá nhân của bất kỳ ai, kể cả trẻ em.</p>
+
+        <h2>Thay đổi chính sách</h2>
+        <p>Chính sách có thể được cập nhật khi tính năng hoặc cách xử lý dữ liệu thay đổi. Ngày có hiệu lực mới sẽ được ghi ở đầu trang này.</p>
+
+        <h2>Liên hệ</h2>
+        <p>Nhà phát triển: Huỳnh Cỏ Khô<br><a href="https://github.com/HuynhCoKho">https://github.com/HuynhCoKho</a></p>
+        <p><a href="index.html">Quay lại Từ điển cá nhân</a></p>
+      </article>
+    </main>
+  </body>
+</html>
